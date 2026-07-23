@@ -1,6 +1,41 @@
 # EDECOOP Sorteos
 
-Aplicacion web responsive para sorteos instantaneos presenciales y digitales de EDECOOP.
+Aplicacion web responsive para sorteos instantaneos, afiliaciones y reportes de ganadores de EDECOOP.
+
+## Inicio rapido
+
+```powershell
+npm install
+docker compose up -d
+npx prisma generate
+npx prisma db push
+npm run seed
+npm run dev -- --port 3002
+```
+
+Abrir:
+
+```text
+http://localhost:3002
+```
+
+## Documentacion para retomar el proyecto
+
+La documentacion completa esta en:
+
+```text
+docs/00-INDICE-DEL-PROYECTO.md
+```
+
+Ese indice contiene las guias para:
+
+- instalar el proyecto desde cero,
+- crear o restaurar PostgreSQL,
+- entender el schema Prisma,
+- reconstruir datos actuales,
+- desplegar en GitHub/Railway,
+- validar que todo funcione,
+- y restaurar una copia exacta con `pg_dump`.
 
 ## Stack
 
@@ -11,62 +46,18 @@ Aplicacion web responsive para sorteos instantaneos presenciales y digitales de 
 - Prisma ORM
 - PostgreSQL
 
-## Configuracion local
+## Variables principales
 
-1. Instalar dependencias:
-
-```bash
-npm install
-```
-
-2. Configurar `.env`:
-
-```bash
+```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edecoop_sorteos?schema=public"
-APP_BASE_URL="http://localhost:3000"
+APP_BASE_URL="http://localhost:3002"
 AUTH_SECRET="cambia-este-secreto"
 ```
 
-3. Levantar PostgreSQL con Docker:
+## Nota sobre copia exacta
 
-```bash
-docker compose up -d
+Los archivos Markdown documentan el proyecto y el snapshot operativo, pero una copia exacta de la base actual debe hacerse con `pg_dump`. Ver:
+
+```text
+docs/08-backup-restauracion-exacta.md
 ```
-
-4. Aplicar schema y datos demo:
-
-```bash
-npx prisma db push
-npm run seed
-```
-
-5. Ejecutar la app:
-
-```bash
-npm run dev
-```
-
-## Usuarios demo
-
-- Admin: `admin@edecoop.local` / `admin123`
-- Promotora: `promotora@edecoop.local` / `promo123`
-
-## Modulos incluidos
-
-- Login por rol.
-- Dashboard administrativo.
-- Ruleta presencial para administradores y promotoras.
-- Ruleta digital publica por token de un solo uso.
-- Administracion de premios e inventario.
-- Historico de premios otorgados.
-- Participacion digital con enlace unico y WhatsApp prellenado.
-- Usuarios administradores y promotoras.
-- Reporte inicial por premio.
-
-## Notas
-
-- El resultado del sorteo se decide siempre en backend.
-- Cada giro descuenta inventario dentro de una transaccion.
-- Cada premio otorgado genera un codigo unico.
-- En digital, el enlace queda marcado como usado dentro de la misma transaccion.
-- En presencial, el participante se genera como `Participante 000001`, `Participante 000002`, etc.
