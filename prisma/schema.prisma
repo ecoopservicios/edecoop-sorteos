@@ -1,0 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  mustChangePassword Boolean @default(false)
+  role         UserRole
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  raffleResults RaffleResult[]
+  inventoryHistory PrizeInventoryHistory[]
+  digitalLinks  DigitalLink[]  @relation("DigitalLinksCreatedBy")
+  enrollmentForms EnrollmentForm[]
+  deletedEnrollmentSubmissions EnrollmentSubmission[]
+  auditLogs     AuditLog[]
+  createdEventEditions EventEdition[]
+  winnerReports WinnerReport[]
+}
+
+model Prize {
+  id                String           @id @default(cuid())
+  name              String
+  description       String?
+  totalQuantity     Int
+  availableQuantity Int
+  isActive          Boolean          @default(true)
+  environment       PrizeEnvironment
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([isActive, environment])
+}
+
+model PrizeInventoryHistory {
+  id                String   @id @default(cuid())
+  originalPrizeId   String   @unique
+  name              String
+  description       String?
+  totalQuantity     Int
+  availableQuantity Int
+  wasActive         Boolean
+  originalCreatedAt DateTime
+  originalUpdatedAt DateTime
+  deletedReason     String
+  deletedById       String?
+  deletedAt         DateTime @default(now())
+  awardedCount      Int      @default(0)
+
+  deletedBy User? @relation(fields: [deletedById], references: [id])
+
+  @@index([deletedAt])
+  @@index([deletedById])
+}
+
+model DigitalParticipant {
+  id        String   @id @default(cuid())
+  firstName String   @default("")
+  lastName  String   @default("")
+  nie       String   @unique @default("")
+  email     String   @default("")
+  phone     String   @unique
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+  deletedById String?
+  deleteReason String?
+
+  links   DigitalLink[]
+  results RaffleResult[]
+  enrollmentSubmissions EnrollmentSubmission[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  reason     String
+  userId     String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model DigitalLink {
+  id            String            @id @default(cuid())
+  token         String            @unique
+  participantId String
+  createdById   String
+  status        DigitalLinkStatus @default(PENDING)
+  usedAt        DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime          @default(now())
+
+  participant DigitalParticipant @relation(fields: [participantId], references: [id])
+  createdBy   User               @relation("DigitalLinksCreatedBy", fields: [createdById], references: [id])
+  result      RaffleResult?
+  enrollmentSubmissions EnrollmentSubmission[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RaffleResult {
+  id                   String             @id @default(cuid())
+  code                 String             @unique
+  participantName      String
+  participantPhone     String?
+  participantNie       String?
+  participantEmail     String?
+  presentialSequence   Int?
+  environment          RaffleEnvironment
+  prizeId              String
+  prizeName            String
+  responsibleUserId    String?
+  digitalParticipantId String?
+  digitalLinkId        String?            @unique
+  eventEditionId       String?
+  eventTypeName        String?
+  eventName            String?
+  eventMonth           Int?
+  eventYear            Int?
+  eventDate            DateTime?
+  status               RaffleResultStatus @default(PENDING)
+  createdAt            DateTime           @default(now())
+
+  responsibleUser    User?               @relation(fields: [responsibleUserId], references: [id])
+  digitalParticipant DigitalParticipant? @relation(fields: [digitalParticipantId], references: [id])
+  digitalLink        DigitalLink?        @relation(fields: [digitalLinkId], references: [id])
+  enrollmentSubmissions EnrollmentSubmission[]
+  eventEdition       EventEdition?       @relation(fields: [eventEditionId], references: [id])
+
+  @@index([createdAt])
+  @@index([environment])
+  @@index([responsibleUserId])
+  @@index([prizeId])
+  @@index([eventEditionId])
+}
+
+model AppCounter {
+  key       String   @id
+  value     Int
+  updatedAt DateTime @updatedAt
+}
+
+model EnrollmentForm {
+  id             String   @id @default(cuid())
+  token          String   @unique
+  title          String
+  description    String
+  welcomeMessage String
+  successMessage String
+  isActive       Boolean  @default(true)
+  allowInstantPrize Boolean @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy   User?                  @relation(fields: [createdById], references: [id])
+  submissions EnrollmentSubmission[]
+  companies   EnrollmentCompany[]
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model EnrollmentCompany {
+  id        String   @id @default(cuid())
+  formId    String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  form EnrollmentForm @relation(fields: [formId], references: [id])
+
+  @@unique([formId, name])
+  @@index([formId, isActive])
+}
+
+model EnrollmentSubmission {
+  id                String                   @id @default(cuid())
+  formId            String
+  firstName         String
+  lastName          String
+  documentId        String
+  residencePhone    String?
+  mobilePhone       String
+  address           String
+  city              String
+  maritalStatus     String
+  spouseName        String?
+  profession        String
+  birthDate         DateTime
+  position          String
+  companyName       String @default("")
+  department        String
+  workPhone         String?
+  workplace         String
+  email             String
+  monthlySalary     Decimal                  @db.Decimal(12, 2)
+  employeeNumber    String
+  bankAccountNumber String?
+  bankName          String?
+  salaryDeductionPercent Decimal             @db.Decimal(5, 2)
+  acceptsTerms      Boolean                  @default(true)
+  channel           EnrollmentSubmissionChannel @default(VIRTUAL)
+  receivedPrize     Boolean                  @default(false)
+  prizeCode         String?
+  raffleResultId    String?
+  eventEditionId    String?
+  followUpStatus    EnrollmentFollowUpStatus @default(NEW)
+  digitalParticipantId String?
+  digitalLinkId     String?
+  deletedAt         DateTime?
+  deletedById       String?
+  deleteReason      String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  form               EnrollmentForm      @relation(fields: [formId], references: [id])
+  digitalParticipant DigitalParticipant? @relation(fields: [digitalParticipantId], references: [id])
+  digitalLink        DigitalLink?        @relation(fields: [digitalLinkId], references: [id])
+  raffleResult       RaffleResult?       @relation(fields: [raffleResultId], references: [id])
+  eventEdition       EventEdition?       @relation(fields: [eventEditionId], references: [id])
+  deletedBy          User?               @relation(fields: [deletedById], references: [id])
+
+  @@index([formId])
+  @@index([createdAt])
+  @@index([followUpStatus])
+  @@index([documentId])
+  @@index([mobilePhone])
+  @@index([channel])
+  @@index([prizeCode])
+  @@index([raffleResultId])
+  @@index([eventEditionId])
+}
+
+model EventType {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  editions EventEdition[]
+}
+
+model EventZone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventEdition {
+  id          String             @id @default(cuid())
+  eventTypeId String
+  month       Int
+  year        Int
+  displayName String
+  usesZones   Boolean            @default(false)
+  status      EventEditionStatus @default(ACTIVE)
+  eventDate   DateTime?
+  closedAt    DateTime?
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  eventType   EventType              @relation(fields: [eventTypeId], references: [id])
+  createdBy   User?                  @relation(fields: [createdById], references: [id])
+  prizes      EventPrize[]
+  participants EventParticipant[]
+  raffleResults RaffleResult[]
+  enrollmentSubmissions EnrollmentSubmission[]
+
+  @@unique([eventTypeId, month, year])
+  @@index([status])
+  @@index([year, month])
+}
+
+model EventPrize {
+  id                String         @id @default(cuid())
+  eventEditionId    String
+  type              EventPrizeType
+  name              String
+  zone              String?
+  availableQuantity Int
+  awardedQuantity   Int            @default(0)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  eventEdition EventEdition @relation(fields: [eventEditionId], references: [id])
+
+  @@index([eventEditionId])
+  @@index([zone])
+}
+
+model EventParticipant {
+  id             String                   @id @default(cuid())
+  eventEditionId String
+  zone           String?
+  firstName      String
+  lastName       String
+  documentId     String?
+  employeeNumber String?
+  phone          String?
+  email          String?
+  source         EventParticipantSource   @default(BULK)
+  status         EventParticipantStatus   @default(AVAILABLE)
+  loadedAt       DateTime                 @default(now())
+  wonAt          DateTime?
+
+  eventEdition EventEdition @relation(fields: [eventEditionId], references: [id])
+
+  @@index([eventEditionId])
+  @@index([zone])
+  @@index([status])
+}
+
+model WinnerReport {
+  id             String   @id @default(cuid())
+  name           String
+  reportDate     DateTime @default(now())
+  headerImagePath String?
+  footerImagePath String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id])
+  winners   WinnerReportEntry[]
+
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+model WinnerReportEntry {
+  id        String   @id @default(cuid())
+  reportId  String
+  ref       Int
+  winnerId  String
+  name      String
+  prize     String
+  location  String
+  createdAt DateTime @default(now())
+
+  report WinnerReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, ref])
+  @@index([reportId])
+  @@index([winnerId])
+}
+
+enum UserRole {
+  ADMIN
+  PROMOTER
+}
+
+enum PrizeEnvironment {
+  PRESENTIAL
+  DIGITAL
+  BOTH
+}
+
+enum DigitalLinkStatus {
+  PENDING
+  USED
+  EXPIRED
+  CANCELLED
+}
+
+enum RaffleEnvironment {
+  PRESENTIAL
+  DIGITAL
+}
+
+enum RaffleResultStatus {
+  PENDING
+  SENT
+  DELIVERED
+  AWARDED
+  CANCELLED
+}
+
+enum EnrollmentFollowUpStatus {
+  NEW
+  CONTACTED
+  IN_PROCESS
+  MEMBER
+  NOT_INTERESTED
+}
+
+enum EnrollmentSubmissionChannel {
+  VIRTUAL
+  PRESENTIAL
+  PRESENTIAL_DIGITAL
+  PRESENTIAL_FISICO
+}
+
+enum EventEditionStatus {
+  ACTIVE
+  INACTIVE
+  CLOSED
+}
+
+enum EventPrizeType {
+  BONUS
+  ARTICLE
+  FINAL
+}
+
+enum EventParticipantSource {
+  BULK
+  ENROLLMENT
+}
+
+enum EventParticipantStatus {
+  AVAILABLE
+  WINNER
+}

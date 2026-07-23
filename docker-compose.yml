@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: edecoop_sorteos_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: edecoop_sorteos
+    ports:
+      - "5432:5432"
+    volumes:
+      - edecoop_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  edecoop_postgres_data:
