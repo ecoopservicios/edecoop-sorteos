@@ -290,7 +290,6 @@ async function parseRows(text: string, formId: string) {
         continue;
       }
 
-      const isEdesur = companyName === "EDESUR";
       rows.push({
         rowNumber,
         firstName,
@@ -309,8 +308,8 @@ async function parseRows(text: string, formId: string) {
         email,
         monthlySalary: monthlySalary ?? 0,
         employeeNumber,
-        bankAccountNumber: isEdesur ? "No aplica" : value("cta_banco_no") || null,
-        bankName: isEdesur ? "No aplica" : value("nombre_banco") || null,
+        bankAccountNumber: value("cta_banco_no") || null,
+        bankName: value("nombre_banco") || null,
         salaryDeductionPercent: salaryDeductionPercent ?? 0,
         receivedPrize,
         prizeCode,

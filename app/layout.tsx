@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ReloadLogoutGuard } from "@/components/reload-logout-guard";
 import { ToastViewport } from "@/components/toast-viewport";
 import "./globals.css";
 
@@ -16,7 +15,6 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <ReloadLogoutGuard />
         <ToastViewport />
         {children}
       </body>

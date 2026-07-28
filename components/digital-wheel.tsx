@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { DoorClosed, FilePlus2, RotateCw } from "lucide-react";
+import { DoorClosed, Download, FilePlus2, RotateCw } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type DigitalState = {
   token: string;
   status: string;
   participantName: string;
+  downloadUrl?: string | null;
   eventName?: string | null;
   result: null | {
     code: string;
@@ -128,6 +129,15 @@ export function DigitalWheel({ initialLink, enrollmentUrl }: { initialLink: Digi
                 <p className="break-all text-2xl font-black text-amber-950">{link.result.code}</p>
               </div>
               <div className="flex flex-col gap-2 pt-2 sm:flex-row">
+                {link.downloadUrl ? (
+                  <a
+                    href={link.downloadUrl}
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 font-bold text-amber-900 hover:bg-amber-100"
+                  >
+                    <Download size={18} />
+                    Descargar constancia
+                  </a>
+                ) : null}
                 {enrollmentUrl ? (
                   <a
                     href={enrollmentUrl}

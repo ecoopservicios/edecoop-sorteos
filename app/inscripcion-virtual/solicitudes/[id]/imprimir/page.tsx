@@ -13,6 +13,14 @@ function Field({ label, value, wide }: { label: string; value?: string | null; w
   );
 }
 
+function formatDate(date: Date) {
+  return date.toLocaleDateString("es-DO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+}
+
 export default async function PrintEnrollmentPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -24,6 +32,8 @@ export default async function PrintEnrollmentPage({ params }: { params: Promise<
     include: { form: true }
   });
   if (!submission || submission.deletedAt) notFound();
+  const affiliateFullName = `${submission.firstName} ${submission.lastName}`.trim();
+  const completedDate = formatDate(submission.createdAt);
 
   return (
     <main className="bg-white p-4 text-slate-950 print:p-0">
@@ -80,10 +90,12 @@ export default async function PrintEnrollmentPage({ params }: { params: Promise<
 
         <div className="mt-9 grid grid-cols-2 gap-16 text-center text-xs">
           <div>
-            <div className="border-t border-slate-600 pt-1">Firma</div>
+            <div className="border-b border-slate-600 pb-1 font-semibold">{affiliateFullName}</div>
+            <div className="pt-1">Firma</div>
           </div>
           <div>
-            <div className="border-t border-slate-600 pt-1">Fecha</div>
+            <div className="border-b border-slate-600 pb-1 font-semibold">{completedDate}</div>
+            <div className="pt-1">Fecha</div>
           </div>
         </div>
       </section>

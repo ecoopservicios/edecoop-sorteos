@@ -1,4 +1,4 @@
-import { DigitalLinkStatus } from "@prisma/client";
+﻿import { DigitalLinkStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { DigitalWheel } from "@/components/digital-wheel";
 import { prisma } from "@/lib/db";
@@ -37,7 +37,9 @@ export default async function DigitalRafflePage({ params }: { params: Promise<{ 
       initialLink={{
         token: link.token,
         status,
-        participantName: link.participant.name,
+        participantName: link.participant.name,
+
+        downloadUrl: link.enrollmentSubmissions[0] ? `/api/inscripcion/solicitudes/${link.enrollmentSubmissions[0].id}/pdf` : null,
         eventName: link.result?.eventName || link.enrollmentSubmissions[0]?.eventEdition?.displayName || null,
         result: link.result
           ? {
@@ -52,3 +54,4 @@ export default async function DigitalRafflePage({ params }: { params: Promise<{ 
     />
   );
 }
+

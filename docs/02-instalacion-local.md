@@ -23,6 +23,7 @@ Ejemplo local recomendado:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edecoop_sorteos?schema=public"
 APP_BASE_URL="http://localhost:3002"
 AUTH_SECRET="cambia-este-secreto-por-uno-largo-y-seguro"
+PRIZE_CONTACT_WHATSAPP="WhatsApp de EDECOOP"
 ```
 
 Notas:
@@ -30,6 +31,7 @@ Notas:
 - `DATABASE_URL` apunta a PostgreSQL.
 - `APP_BASE_URL` se usa para generar enlaces publicos, QR y enlaces de ruleta.
 - `AUTH_SECRET` firma las cookies de sesion. En produccion debe ser largo y secreto.
+- `PRIZE_CONTACT_WHATSAPP` se imprime en la constancia PDF para coordinar la entrega del premio.
 
 ## Levantar PostgreSQL local con Docker
 

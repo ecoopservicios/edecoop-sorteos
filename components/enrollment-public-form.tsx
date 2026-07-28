@@ -1,12 +1,14 @@
 ﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { AlertTriangle, RotateCcw, Send } from "lucide-react";
+import { AlertTriangle, Download, RotateCcw, Send } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type SubmitResult = {
   message: string;
-  prizeLink: string | null;
+  prizeLink: string | null;
+
+  downloadUrl?: string | null;
   eventName?: string | null;
 };
 
@@ -55,21 +57,10 @@ export function EnrollmentPublicForm({
   const [maritalStatus, setMaritalStatus] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
-  const [bankName, setBankName] = useState("");
-  const isEdesur = companyName.trim().toUpperCase() === "EDESUR";
+  const [bankName, setBankName] = useState("");
   const requiresSpouse = maritalStatus === "CASADO" || maritalStatus === "UNION LIBRE";
-  const storageKey = `edecoop:enrollment:${token}`;
-
-  useEffect(() => {
-    if (isEdesur) {
-      setBankAccountNumber("No aplica");
-      setBankName("No aplica");
-      return;
-    }
-    setBankAccountNumber("");
-    setBankName("");
-  }, [isEdesur]);
-
+  const storageKey = `edecoop:enrollment:${token}`;
+
   useEffect(() => {
     if (!isDirty || result) return;
 
@@ -210,7 +201,7 @@ export function EnrollmentPublicForm({
     setIsDirty(false);
     setFieldAlerts({});
     window.localStorage.removeItem(storageKey);
-    setResult({ message: data.message, prizeLink: data.prizeLink, eventName: data.eventName });
+    setResult({ message: data.message, prizeLink: data.prizeLink, downloadUrl: data.downloadUrl, eventName: data.eventName });
     formElement.reset();
     setMaritalStatus("");
     setCompanyName("");
@@ -233,7 +224,15 @@ export function EnrollmentPublicForm({
             Participar por premio instantáneo
           </a>
         ) : (
-          <p className="mt-5 rounded-md bg-emerald-50 p-3 font-semibold text-emerald-900">Gracias por ser parte de EDECOOP.</p>
+          <div className="mt-5 grid gap-3">
+            <p className="rounded-md bg-emerald-50 p-3 font-semibold text-emerald-900">Gracias por ser parte de EDECOOP.</p>
+            {result.downloadUrl ? (
+              <a href={result.downloadUrl} className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-5 py-3 font-bold text-slate-700 hover:bg-slate-100">
+                <Download size={18} />
+                Descargar solicitud
+              </a>
+            ) : null}
+          </div>
         )}
       </section>
     );
@@ -381,17 +380,17 @@ export function EnrollmentPublicForm({
           name="bankAccountNumber"
           placeholder="Cta Banco No."
           value={bankAccountNumber}
-          onChange={(event) => setBankAccountNumber(event.currentTarget.value)}
-          readOnly={isEdesur}
-          className={`${controlClass} read-only:bg-slate-100`}
+          onChange={(event) => setBankAccountNumber(event.currentTarget.value)}
+
+          className={controlClass}
         />
         <input
           name="bankName"
           placeholder="Nombre Banco"
           value={bankName}
-          onChange={(event) => setBankName(event.currentTarget.value)}
-          readOnly={isEdesur}
-          className={`${controlClass} read-only:bg-slate-100`}
+          onChange={(event) => setBankName(event.currentTarget.value)}
+
+          className={controlClass}
         />
       </div>
 
@@ -418,3 +417,8 @@ export function EnrollmentPublicForm({
   );
 }
 
+
+
+
+
+

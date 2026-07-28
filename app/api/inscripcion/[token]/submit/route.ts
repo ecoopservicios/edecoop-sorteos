@@ -1,4 +1,4 @@
-import { DigitalLinkStatus, EnrollmentSubmissionChannel, Prisma } from "@prisma/client";
+﻿import { DigitalLinkStatus, EnrollmentSubmissionChannel, Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { generateToken } from "@/lib/codes";
@@ -26,7 +26,7 @@ function isValidEmail(value: string) {
 function tenDigitPhone(value: string, label: string) {
   const digits = value.replace(/\D/g, "");
   if (digits.length !== 10) {
-    throw new Error(`${label} debe contener exactamente 10 números, sin letras ni símbolos.`);
+    throw new Error(`${label} debe contener exactamente 10 nÃºmeros, sin letras ni sÃ­mbolos.`);
   }
   return digits;
 }
@@ -34,7 +34,7 @@ function tenDigitPhone(value: string, label: string) {
 function documentIdValue(value: string) {
   const digits = value.replace(/\D/g, "");
   if (digits.length !== 11) {
-    throw new Error("La cédula debe contener exactamente 11 números, sin guiones ni letras.");
+    throw new Error("La cÃ©dula debe contener exactamente 11 nÃºmeros, sin guiones ni letras.");
   }
   return digits;
 }
@@ -42,7 +42,7 @@ function documentIdValue(value: string) {
 function employeeNumberValue(value: string) {
   const digits = value.replace(/\D/g, "");
   if (!digits || digits.length > 5) {
-    throw new Error("El NIE solo acepta números y un máximo de 5 dígitos.");
+    throw new Error("El NIE solo acepta nÃºmeros y un mÃ¡ximo de 5 dÃ­gitos.");
   }
   return digits;
 }
@@ -154,23 +154,21 @@ export async function POST(
     const employeeNumber = employeeNumberValue(required(form, "employeeNumber"));
     const birthDate = new Date("1900-01-01T00:00:00");
 
-    if (!isValidEmail(email)) return jsonError("Correo electrónico inválido.", 422);
-    if (!monthlySalary) return jsonError("Sueldo mensual inválido.", 422);
+    if (!isValidEmail(email)) return jsonError("Correo electrÃ³nico invÃ¡lido.", 422);
+    if (!monthlySalary) return jsonError("Sueldo mensual invÃ¡lido.", 422);
     if (!salaryDeductionPercent || salaryDeductionPercent < 4) {
       return jsonError("El porcentaje de descuento debe ser 4% o mayor.", 422);
     }
-    if (!["SOLTERO", "CASADO", "UNION LIBRE"].includes(maritalStatus)) return jsonError("Estado civil inválido.", 422);
+    if (!["SOLTERO", "CASADO", "UNION LIBRE"].includes(maritalStatus)) return jsonError("Estado civil invÃ¡lido.", 422);
     if ((maritalStatus === "CASADO" || maritalStatus === "UNION LIBRE") && !spouseName) {
       return jsonError("Debe indicar el nombre del conyuge.", 422);
     }
-    if (form.get("acceptsTerms") !== "on") return jsonError("Debe aceptar la solicitud de admisión.", 422);
+    if (form.get("acceptsTerms") !== "on") return jsonError("Debe aceptar la solicitud de admisiÃ³n.", 422);
 
     const company = await prisma.enrollmentCompany.findFirst({
       where: { formId: formConfig.id, name: companyName, isActive: true }
     });
     if (!company) return jsonError("Empresa no disponible.", 422);
-    const isEdesur = companyName === "EDESUR";
-
     const duplicate = await checkPersonDuplicate({ firstName, lastName, documentId, employeeNumber, phone: mobilePhone, email });
     if (duplicate) return NextResponse.json({ error: duplicate.message, field: duplicate.field }, { status: 409 });
 
@@ -220,8 +218,8 @@ export async function POST(
         email,
         monthlySalary,
         employeeNumber,
-        bankAccountNumber: isEdesur ? "No aplica" : text(form.get("bankAccountNumber")) || null,
-        bankName: isEdesur ? "No aplica" : text(form.get("bankName")) || null,
+        bankAccountNumber: text(form.get("bankAccountNumber")) || null,
+        bankName: text(form.get("bankName")) || null,
         salaryDeductionPercent,
         acceptsTerms: true,
         channel,
@@ -234,6 +232,7 @@ export async function POST(
       submissionId: submission.id,
       message: formConfig.successMessage,
       prizeLink: prizeLink?.url || null,
+      downloadUrl: `/api/inscripcion/solicitudes/${submission.id}/pdf`,
       eventName: campaignEvent?.displayName || null
     });
   } catch (error) {
@@ -243,3 +242,5 @@ export async function POST(
     return jsonError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.", 422);
   }
 }
+
+
