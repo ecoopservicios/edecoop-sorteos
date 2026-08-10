@@ -4,7 +4,12 @@ import { loginSchema } from "@/lib/validators";
 import { setSessionCookie, verifyPassword } from "@/lib/auth";
 
 function redirectTo(request: NextRequest, path: string) {
-  return NextResponse.redirect(new URL(path, request.url), { status: 303 });
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const host = forwardedHost || request.headers.get("host");
+  const proto = forwardedProto || (host?.includes("localhost") ? "http" : "https");
+  const origin = host ? `${proto}://${host}` : request.nextUrl.origin;
+  return NextResponse.redirect(new URL(path, origin), { status: 303 });
 }
 
 export async function POST(request: NextRequest) {
