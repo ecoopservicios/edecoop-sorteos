@@ -1,6 +1,8 @@
 import { DataUpdatePublicForm } from "@/components/data-update-public-form";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function PublicDataUpdatePage() {
   const companies = await prisma.enrollmentCompany.findMany({
     where: { isActive: true, dataUpdateEnabled: true, dataUpdateLookupField: { not: null } },
