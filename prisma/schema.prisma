@@ -26,6 +26,7 @@ model User {
   auditLogs     AuditLog[]
   createdEventEditions EventEdition[]
   winnerReports WinnerReport[]
+  memberDirectoryEntries MemberDirectory[]
 }
 
 model Prize {
@@ -163,6 +164,13 @@ model AppCounter {
   updatedAt DateTime @updatedAt
 }
 
+model AppSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model EnrollmentForm {
   id             String   @id @default(cuid())
   token          String   @unique
@@ -185,17 +193,22 @@ model EnrollmentForm {
 }
 
 model EnrollmentCompany {
-  id        String   @id @default(cuid())
-  formId    String
-  name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                        String             @id @default(cuid())
+  formId                    String
+  name                      String
+  isActive                  Boolean            @default(true)
+  dataUpdateEnabled         Boolean            @default(false)
+  dataUpdateLookupField     MemberLookupField?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
 
   form EnrollmentForm @relation(fields: [formId], references: [id])
+  dataUpdateMembers MemberDirectory[]
+  dataUpdateSubmissions MemberDataUpdateSubmission[]
 
   @@unique([formId, name])
   @@index([formId, isActive])
+  @@index([dataUpdateEnabled])
 }
 
 model EnrollmentSubmission {
@@ -375,6 +388,62 @@ model WinnerReportEntry {
   @@index([winnerId])
 }
 
+model MemberDirectory {
+  id              String   @id @default(cuid())
+  enrollmentCompanyId String
+  firstName       String
+  lastName        String
+  documentId      String?
+  employeeNumber  String?
+  personalPhone   String?
+  whatsappPhone   String?
+  personalEmail   String?
+  isActive        Boolean  @default(true)
+  loadedById      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  enrollmentCompany EnrollmentCompany @relation(fields: [enrollmentCompanyId], references: [id])
+  loadedBy          User?             @relation(fields: [loadedById], references: [id])
+  updates           MemberDataUpdateSubmission[]
+
+  @@index([enrollmentCompanyId])
+  @@index([documentId])
+  @@index([employeeNumber])
+  @@unique([enrollmentCompanyId, documentId])
+  @@unique([enrollmentCompanyId, employeeNumber])
+}
+
+model MemberDataUpdateSubmission {
+  id                        String                   @id @default(cuid())
+  memberDirectoryId          String
+  enrollmentCompanyId        String
+  lookupField                MemberLookupField
+  lookupValue                String
+  previousPersonalPhone      String?
+  previousWhatsappPhone      String?
+  previousPersonalEmail      String?
+  personalPhone              String
+  whatsappPhone              String
+  personalEmail              String
+  emergencyContactName       String
+  emergencyContactPhone      String
+  emergencyContactRelation   EmergencyContactRelation
+  phoneValidationStatus      ContactValidationStatus
+  whatsappValidationStatus   ContactValidationStatus
+  emailValidationStatus      ContactValidationStatus
+  status                     DataUpdateStatus         @default(RECEIVED)
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+
+  memberDirectory   MemberDirectory   @relation(fields: [memberDirectoryId], references: [id])
+  enrollmentCompany EnrollmentCompany @relation(fields: [enrollmentCompanyId], references: [id])
+
+  @@index([createdAt])
+  @@index([enrollmentCompanyId])
+  @@index([status])
+}
+
 enum UserRole {
   ADMIN
   PROMOTER
@@ -441,4 +510,28 @@ enum EventParticipantSource {
 enum EventParticipantStatus {
   AVAILABLE
   WINNER
+}
+
+enum MemberLookupField {
+  DOCUMENT_ID
+  EMPLOYEE_NUMBER
+}
+
+enum EmergencyContactRelation {
+  FAMILIAR
+  ESPOSA
+  HIJO
+  AMIGO
+}
+
+enum ContactValidationStatus {
+  NEW
+  SAME_AS_REGISTERED
+}
+
+enum DataUpdateStatus {
+  RECEIVED
+  REVIEWED
+  APPLIED
+  REJECTED
 }

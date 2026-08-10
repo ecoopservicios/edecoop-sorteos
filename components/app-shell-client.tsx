@@ -10,6 +10,7 @@ import {
   History,
   Link2,
   PackageCheck,
+  RefreshCw,
   Settings,
   Trophy,
   Users,
@@ -23,23 +24,25 @@ type ShellRole = "ADMIN" | "PROMOTER";
 
 const adminItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/ruleta/presencial", label: "Participación Presencial", icon: Gift },
+  { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
   { href: "/premios", label: "Eventos", icon: WalletCards },
-  { href: "/historico", label: "Histórico", icon: History },
+  { href: "/historico", label: "Historico", icon: History },
   { href: "/estado-premio", label: "Estado de Premio", icon: PackageCheck },
-  { href: "/participacion-digital", label: "Participación Virtual", icon: Link2 },
-  { href: "/inscripcion-virtual", label: "Formularios de Afiliación", icon: ClipboardPenLine },
-  { href: "/bitacora", label: "Bitácora", icon: ClipboardList },
+  { href: "/participacion-digital", label: "Participacion Virtual", icon: Link2 },
+  { href: "/inscripcion-virtual", label: "Formularios de Afiliacion", icon: ClipboardPenLine },
+  { href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw },
+  { href: "/bitacora", label: "Bitacora", icon: ClipboardList },
   { href: "/ganadores", label: "Ganadores", icon: Trophy },
   { href: "/usuarios", label: "Usuarios", icon: Users },
+  { href: "/configuracion", label: "Configuracion", icon: Settings },
   { href: "/reportes", label: "Reportes", icon: Settings }
 ];
 
 const promoterItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/ruleta/presencial", label: "Participación Presencial", icon: Gift },
-  { href: "/inscripcion-virtual?tab=presencial", label: "Afiliación Presencial", icon: ClipboardPenLine },
-  { href: "/historico", label: "Histórico", icon: History }
+  { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
+  { href: "/inscripcion-virtual?tab=presencial", label: "Afiliacion Presencial", icon: ClipboardPenLine },
+  { href: "/historico", label: "Historico", icon: History }
 ];
 
 function isActive(pathname: string, href: string) {
@@ -75,7 +78,7 @@ export function AppShellClient({
         <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:px-8">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">EDECOOP</p>
-            <h1 className="truncate text-base font-black text-slate-900 sm:text-lg">Sorteos instantáneos</h1>
+            <h1 className="truncate text-base font-black text-slate-900 sm:text-lg">Sorteos instantaneos</h1>
           </div>
 
           <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 lg:flex">
@@ -110,12 +113,12 @@ export function AppShellClient({
 
           <button
             type="button"
-            aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-label={mobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen((open) => !open)}
             className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 shadow-sm transition hover:bg-slate-50 lg:hidden"
           >
-            <span className="sr-only">{mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}</span>
+            <span className="sr-only">{mobileMenuOpen ? "Cerrar menu" : "Abrir menu"}</span>
             <span className="relative h-5 w-6">
               <span
                 className={`absolute left-0 top-0 h-0.5 w-6 rounded-full bg-slate-900 transition duration-300 ${

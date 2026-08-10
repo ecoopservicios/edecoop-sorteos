@@ -185,7 +185,7 @@ export default async function EventsPage({
     { href: "/premios?tab=premios", label: "Premios", key: "premios" },
     { href: "/premios?tab=participantes", label: "Participantes", key: "participantes" },
     { href: "/premios?tab=historicos", label: "Eventos Históricos", key: "historicos" },
-    { href: "/premios?tab=configuracion", label: "Configuración de eventos", key: "configuracion" },
+    { href: "/premios?tab=configuracion", label: "Configuracion de eventos", key: "configuracion" },
     { href: "/premios?tab=reset", label: "Reset de eventos", key: "reset" }
   ];
 

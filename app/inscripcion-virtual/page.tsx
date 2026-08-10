@@ -6,8 +6,6 @@ import { UserRole } from "@prisma/client";
 
 import { AppShell } from "@/components/app-shell";
 
-import { EnrollmentCompanyManager } from "@/components/enrollment-company-manager";
-
 import { EnrollmentFormConfig } from "@/components/enrollment-form-config";
 
 import { EnrollmentPresentialPanel } from "@/components/enrollment-presential-panel";
@@ -140,22 +138,6 @@ export default async function EnrollmentAdminPage({
 
           />
 
-          <EnrollmentCompanyManager
-
-            formId={form.id}
-
-            companies={form.companies.map((company) => ({
-
-              id: company.id,
-
-              name: company.name,
-
-              isActive: company.isActive
-
-            }))}
-
-          />
-
         </>
 
       ) : activeTab === "presencial" ? (
@@ -213,4 +195,3 @@ export default async function EnrollmentAdminPage({
   );
 
 }
-

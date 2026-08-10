@@ -25,6 +25,17 @@ function value(text?: string | number | null) {
   return text === null || text === undefined || text === "" ? "-" : String(text);
 }
 
+function fitTextToWidth(text: string, font: Awaited<ReturnType<PDFDocument["embedFont"]>>, size: number, maxWidth: number) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (font.widthOfTextAtSize(clean, size) <= maxWidth) return clean;
+
+  let fitted = clean;
+  while (fitted.length > 1 && font.widthOfTextAtSize(`${fitted}...`, size) > maxWidth) {
+    fitted = fitted.slice(0, -1);
+  }
+  return `${fitted.trimEnd()}...`;
+}
+
 function drawTextBox({
   page,
   font,
@@ -44,10 +55,27 @@ function drawTextBox({
   y: number;
   width: number;
 }) {
+  const labelWidth = Math.min(112, Math.max(82, width * 0.42));
+  const textX = x + labelWidth + 8;
+  const textMaxWidth = width - labelWidth - 14;
+  const fittedText = fitTextToWidth(value(text), font, 8.5, textMaxWidth);
+
   page.drawRectangle({ x, y, width, height: 28, borderColor: LINE, borderWidth: 1 });
-  page.drawRectangle({ x, y, width: 112, height: 28, color: rgb(0.91, 0.93, 0.95) });
+  page.drawRectangle({ x, y, width: labelWidth, height: 28, color: rgb(0.91, 0.93, 0.95) });
   page.drawText(label, { x: x + 6, y: y + 10, size: 8, font: bold, color: TEXT });
-  page.drawText(value(text).slice(0, 55), { x: x + 120, y: y + 10, size: 8.5, font, color: TEXT });
+  page.drawText(fittedText, { x: textX, y: y + 10, size: 8.5, font, color: TEXT });
+}
+
+function drawSectionTitle(page: ReturnType<PDFDocument["addPage"]>, title: string, y: number, bold: Awaited<ReturnType<PDFDocument["embedFont"]>>) {
+  page.drawLine({ start: { x: MARGIN, y: y + 16 }, end: { x: PAGE_WIDTH - MARGIN, y: y + 16 }, thickness: 0.7, color: LINE });
+  page.drawText(title, {
+    x: (PAGE_WIDTH - bold.widthOfTextAtSize(title, 11)) / 2,
+    y,
+    size: 11,
+    font: bold,
+    color: TEXT
+  });
+  page.drawLine({ start: { x: MARGIN, y: y - 5 }, end: { x: PAGE_WIDTH - MARGIN, y: y - 5 }, thickness: 0.7, color: LINE });
 }
 
 function drawWrappedText({
@@ -130,8 +158,8 @@ export async function GET(
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   await drawHeader(pdf, page, bold);
 
-  page.drawText("SOLICITUD DE ADMISION", { x: 132, y: PAGE_HEIGHT - 48, size: 16, font: bold, color: TEXT });
-  page.drawText("COOPERATIVA DE AHORROS Y CREDITOS EDECOOP", { x: 132, y: PAGE_HEIGHT - 64, size: 9, font: bold, color: MUTED });
+  page.drawText("SOLICITUD DE ADMISIÓN", { x: 132, y: PAGE_HEIGHT - 48, size: 16, font: bold, color: TEXT });
+  page.drawText("COOPERATIVA DE AHORROS Y CRÉDITOS EDECOOP", { x: 132, y: PAGE_HEIGHT - 64, size: 9, font: bold, color: MUTED });
 
   page.drawRectangle({ x: MARGIN, y: 612, width: PAGE_WIDTH - MARGIN * 2, height: 88, borderColor: LINE, borderWidth: 1, color: rgb(0.98, 0.99, 1) });
   drawWrappedText({
@@ -145,25 +173,25 @@ export async function GET(
     lineHeight: 10
   });
 
-  page.drawText("DATOS PERSONALES", { x: 245, y: 590, size: 11, font: bold, color: TEXT });
-  let y = 554;
+  drawSectionTitle(page, "DATOS PERSONALES", 588, bold);
+  let y = 548;
   const colWidth = 254;
   drawTextBox({ page, font, bold, label: "Nombres", text: submission.firstName, x: MARGIN, y, width: colWidth });
   drawTextBox({ page, font, bold, label: "Apellidos", text: submission.lastName, x: MARGIN + colWidth + 20, y, width: colWidth });
   y -= 34;
-  drawTextBox({ page, font, bold, label: "Cedula No.", text: submission.documentId, x: MARGIN, y, width: colWidth });
-  drawTextBox({ page, font, bold, label: "Numero flota", text: submission.residencePhone, x: MARGIN + colWidth + 20, y, width: colWidth });
+  drawTextBox({ page, font, bold, label: "Cédula No.", text: submission.documentId, x: MARGIN, y, width: colWidth });
+  drawTextBox({ page, font, bold, label: "Número flota", text: submission.residencePhone, x: MARGIN + colWidth + 20, y, width: colWidth });
   y -= 34;
   drawTextBox({ page, font, bold, label: "Celular", text: submission.mobilePhone, x: MARGIN, y, width: colWidth });
   drawTextBox({ page, font, bold, label: "Ciudad", text: submission.city, x: MARGIN + colWidth + 20, y, width: colWidth });
   y -= 34;
-  drawTextBox({ page, font, bold, label: "Direccion", text: submission.address, x: MARGIN, y, width: PAGE_WIDTH - MARGIN * 2 });
+  drawTextBox({ page, font, bold, label: "Dirección", text: submission.address, x: MARGIN, y, width: PAGE_WIDTH - MARGIN * 2 });
   y -= 34;
   drawTextBox({ page, font, bold, label: "Estado Civil", text: submission.maritalStatus, x: MARGIN, y, width: colWidth });
-  drawTextBox({ page, font, bold, label: "Conyuge", text: submission.spouseName, x: MARGIN + colWidth + 20, y, width: colWidth });
+  drawTextBox({ page, font, bold, label: "Cónyuge", text: submission.spouseName, x: MARGIN + colWidth + 20, y, width: colWidth });
 
-  y -= 52;
-  page.drawText("DATOS DEL EMPLEADO", { x: 242, y: y + 22, size: 11, font: bold, color: TEXT });
+  y -= 64;
+  drawSectionTitle(page, "DATOS DEL EMPLEADO", y + 43, bold);
   drawTextBox({ page, font, bold, label: "Empresa", text: submission.companyName, x: MARGIN, y, width: colWidth });
   drawTextBox({ page, font, bold, label: "Cargo", text: submission.position, x: MARGIN + colWidth + 20, y, width: colWidth });
   y -= 34;
