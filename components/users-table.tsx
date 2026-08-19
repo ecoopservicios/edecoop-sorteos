@@ -10,6 +10,8 @@ import { KeyRound, Pencil, Power, Save, X } from "lucide-react";
 
 import { notify } from "@/lib/toast";
 
+import { ExportExcelButton } from "@/components/export-excel-button";
+
 
 
 type UserRow = {
@@ -59,6 +61,14 @@ export function UsersTable({ users }: { users: UserRow[] }) {
   const [busyId, setBusyId] = useState("");
 
   const [message, setMessage] = useState("");
+  const exportRows = users.map((user) => ({
+    Nombre: user.name,
+    Correo: user.email,
+    Rol: user.role === "ADMIN" ? "Administrador" : "Promotora",
+    Estado: user.isActive ? "Activo" : "Inactivo",
+    Clave: user.mustChangePassword ? "Debe cambiarla" : "Configurada",
+    Creado: new Date(user.createdAt).toLocaleString("es-DO")
+  }));
 
 
 
@@ -212,7 +222,10 @@ export function UsersTable({ users }: { users: UserRow[] }) {
 
         <h2 className="text-lg font-black text-slate-950">Usuarios registrados</h2>
 
-        {message ? <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">{message}</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportExcelButton rows={exportRows} fileName="usuarios" />
+          {message ? <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">{message}</p> : null}
+        </div>
 
       </div>
 
@@ -427,4 +440,3 @@ export function UsersTable({ users }: { users: UserRow[] }) {
   );
 
 }
-

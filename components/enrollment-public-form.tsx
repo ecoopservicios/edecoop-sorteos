@@ -40,13 +40,11 @@ export function EnrollmentPublicForm({
   token,
   title,
   description,
-  channel = "virtual",
   companies
 }: {
   token: string;
   title: string;
   description: string;
-  channel?: "virtual" | "presential";
   companies: Array<{ id: string; name: string }>;
 }) {
   const [loading, setLoading] = useState(false);
@@ -182,7 +180,7 @@ export function EnrollmentPublicForm({
     setResult(null);
     const formElement = event.currentTarget;
 
-    const response = await fetch(`/api/inscripcion/${token}/submit?channel=${channel}`, {
+    const response = await fetch(`/api/inscripcion/${token}/submit`, {
       method: "POST",
       body: new FormData(formElement)
     });

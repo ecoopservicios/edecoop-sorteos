@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Power, Save, Trash2, X } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { ExportExcelButton } from "@/components/export-excel-button";
 
 type PrizeRow = {
   id: string;
@@ -29,6 +30,11 @@ export function PrizesTable({ prizes }: { prizes: PrizeRow[] }) {
   const [deleting, setDeleting] = useState<PrizeRow | null>(null);
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const exportRows = prizes.map((prize) => ({
+    Premio: prize.name,
+    Disponibilidad: prize.availableQuantity,
+    Estado: prize.isActive ? "Activo" : "Inactivo"
+  }));
 
   async function saveEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -109,7 +115,10 @@ export function PrizesTable({ prizes }: { prizes: PrizeRow[] }) {
     <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-black text-slate-950">Premios registrados</h2>
-        {message ? <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{message}</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportExcelButton rows={exportRows} fileName="premios-registrados" />
+          {message ? <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{message}</p> : null}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { UserRole } from "@prisma/client";
 import { LoginForm } from "@/components/login-form";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -9,7 +8,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; expired?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (user) redirect(user.role === UserRole.ADMIN ? "/dashboard" : "/ruleta/presencial");
+  if (user) redirect(user.mustChangePassword ? "/cambiar-clave" : "/proyectos");
   const { error, expired } = await searchParams;
 
   return (

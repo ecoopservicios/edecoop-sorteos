@@ -4,16 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  ClipboardList,
   ClipboardPenLine,
   Gift,
-  History,
-  Link2,
   PackageCheck,
+  PanelsTopLeft,
   RefreshCw,
   Settings,
   Trophy,
-  Users,
   WalletCards
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -26,24 +23,20 @@ const adminItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
   { href: "/premios", label: "Eventos", icon: WalletCards },
-  { href: "/historico", label: "Historico", icon: History },
-  { href: "/estado-premio", label: "Estado de Premio", icon: PackageCheck },
-  { href: "/participacion-digital", label: "Participacion Virtual", icon: Link2 },
+  { href: "/historico", label: "Premios Otorgados", icon: PackageCheck },
   { href: "/inscripcion-virtual", label: "Formularios de Afiliacion", icon: ClipboardPenLine },
-  { href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw },
-  { href: "/bitacora", label: "Bitacora", icon: ClipboardList },
   { href: "/ganadores", label: "Ganadores", icon: Trophy },
-  { href: "/usuarios", label: "Usuarios", icon: Users },
-  { href: "/configuracion", label: "Configuracion", icon: Settings },
-  { href: "/reportes", label: "Reportes", icon: Settings }
+  { href: "/configuracion", label: "Configuracion", icon: Settings }
 ];
 
 const promoterItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
-  { href: "/inscripcion-virtual?tab=presencial", label: "Afiliacion Presencial", icon: ClipboardPenLine },
-  { href: "/historico", label: "Historico", icon: History }
+  { href: "/inscripcion-virtual?tab=digital", label: "Afiliacion Digital", icon: ClipboardPenLine },
+  { href: "/historico", label: "Premios Otorgados", icon: PackageCheck }
 ];
+
+const dataUpdateItems = [{ href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw }];
 
 function isActive(pathname: string, href: string) {
   const baseHref = href.split("?")[0];
@@ -52,14 +45,17 @@ function isActive(pathname: string, href: string) {
 
 export function AppShellClient({
   user,
+  module = "affiliation",
   children
 }: {
   user: { name: string; role: ShellRole };
+  module?: "affiliation" | "data-update";
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const items = user.role === "ADMIN" ? adminItems : promoterItems;
+  const items = module === "data-update" ? dataUpdateItems : user.role === "ADMIN" ? adminItems : promoterItems;
+  const appTitle = module === "data-update" ? "Actualizacion de datos" : "Sorteos instantaneos";
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -78,7 +74,7 @@ export function AppShellClient({
         <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:px-8">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">EDECOOP</p>
-            <h1 className="truncate text-base font-black text-slate-900 sm:text-lg">Sorteos instantaneos</h1>
+            <h1 className="truncate text-base font-black text-slate-900 sm:text-lg">{appTitle}</h1>
           </div>
 
           <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 lg:flex">
@@ -100,6 +96,15 @@ export function AppShellClient({
                 );
               })}
             </nav>
+
+            <Link
+              href="/proyectos"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 hover:text-emerald-800 xl:px-3 xl:text-sm"
+              title="Cambiar proyecto"
+            >
+              <PanelsTopLeft className="h-4 w-4 shrink-0 xl:h-[18px] xl:w-[18px]" />
+              <span className="hidden whitespace-nowrap xl:inline">Cambiar proyecto</span>
+            </Link>
 
             <div className="hidden shrink-0 border-l border-slate-200 pl-3 xl:block">
               <p className="max-w-[150px] truncate text-right text-xs font-semibold text-slate-800">{user.name}</p>
@@ -172,6 +177,13 @@ export function AppShellClient({
         </nav>
 
         <div className="border-t border-slate-100 p-3">
+          <Link
+            href="/proyectos"
+            className="mb-2 inline-flex w-full items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-emerald-800"
+          >
+            <PanelsTopLeft className="h-[18px] w-[18px] shrink-0" />
+            <span>Cambiar proyecto</span>
+          </Link>
           <p className="mb-2 text-xs font-semibold text-slate-500">{user.name}</p>
           <LogoutButton />
         </div>

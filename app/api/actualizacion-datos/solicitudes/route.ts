@@ -1,6 +1,7 @@
 import { EmergencyContactRelation } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
+import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { compareContactValue, normalizeLookupValue, normalizePersonalEmail, tenDigitContactPhone } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
@@ -40,6 +41,17 @@ export async function POST(request: NextRequest) {
       return jsonError("El correo ingresado coincide con el que tenemos registrado. Favor ingresar su correo electronico personal actualizado.", 422);
     }
 
+    const questions = await getDataUpdateQuestions();
+    const additionalQuestions = questions.filter((question) => !question.isSystem);
+    const customResponses = (payload.customResponses || {}) as Record<string, unknown>;
+    const cleanResponses: Record<string, string> = {};
+    for (const question of additionalQuestions) {
+      const value = String(customResponses[question.fieldKey] || "").trim();
+      if (question.required && !value) throw new Error(`${question.label} es obligatorio.`);
+      if (!value) continue;
+      cleanResponses[question.fieldKey] = value;
+    }
+
     const submission = await prisma.memberDataUpdateSubmission.create({
       data: {
         memberDirectoryId: member.id,
@@ -55,15 +67,17 @@ export async function POST(request: NextRequest) {
         emergencyContactName,
         emergencyContactPhone,
         emergencyContactRelation,
+        customResponses: cleanResponses,
         phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
         whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
         emailValidationStatus: compareContactValue(personalEmail, member.personalEmail)
       }
     });
 
+    const texts = await getDataUpdateTextSettings();
     return NextResponse.json({
       submissionId: submission.id,
-      message: "Gracias por actualizar sus datos. La informacion fue recibida correctamente por EDECOOP."
+      message: texts.successMessage
     });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.", 422);

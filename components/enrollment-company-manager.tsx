@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Power, Trash2, X } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { ExportExcelButton } from "@/components/export-excel-button";
 
 type Company = {
   id: string;
@@ -27,6 +28,12 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const exportRows = companies.map((company) => ({
+    Empresa: company.name,
+    Estado: company.isActive ? "Activa" : "Inactiva",
+    "Actualizacion de datos": company.dataUpdateEnabled ? "Habilitada" : "No habilitada",
+    "Dato de consulta": company.dataUpdateEnabled ? lookupLabel(company.dataUpdateLookupField) : "No habilitado"
+  }));
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,7 +121,10 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-black text-slate-950">Empresas del formulario</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-black text-slate-950">Empresas del formulario</h2>
+        <ExportExcelButton rows={exportRows} fileName="empresas-formulario" />
+      </div>
 
       <form onSubmit={create} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input name="name" required placeholder="Nombre de empresa" className="rounded-md border border-slate-300 px-3 py-2 sm:flex-1" />

@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, FileDown, ImageUp, Plus, Trash2, Upload } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { ExportExcelButton } from "@/components/export-excel-button";
 
 type WinnerRow = {
   id: string;
@@ -269,6 +270,17 @@ export function WinnersManager({ reports }: { reports: ReportRow[] }) {
               </div>
               <div>
                 <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+                  <ExportExcelButton
+                    rows={selected.winners.map((winner) => ({
+                      Ref: winner.ref,
+                      ID: winner.winnerId,
+                      Nombre: winner.name,
+                      "Premio RD$": winner.prize,
+                      Localidad: winner.location
+                    }))}
+                    fileName={`ganadores-${selected.name}`}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-100"
+                  />
                   <button type="button" onClick={() => excelInputRef.current?.click()} disabled={busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">
                     <Upload size={17} />
                     Cargar Excel

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EventEditionStatus, RaffleEnvironment, RaffleResultStatus, UserRole } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
+import { ExportExcelButton } from "@/components/export-excel-button";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { eventStatusLabel, monthLabel, prizeTypeLabel } from "@/lib/events";
@@ -63,6 +64,20 @@ export default async function DashboardPage({
   for (const result of results) {
     awardedByPrize.set(result.prizeId, (awardedByPrize.get(result.prizeId) || 0) + 1);
   }
+  const prizeSummaryRows =
+    selectedEvent?.prizes.map((prize) => {
+      const awarded = awardedByPrize.get(prize.id) || 0;
+      return {
+        Premio: prize.name,
+        Tipo: prizeTypeLabel(prize.type),
+        Zona: prize.zone || "",
+        Disponible: prize.availableQuantity,
+        Otorgado: awarded,
+        "Total jornada": prize.availableQuantity + awarded,
+        Estado: prize.isActive ? "Activo" : "Inactivo",
+        Evento: selectedEvent.displayName
+      };
+    }) || [];
 
   const eventQuery = selectedEvent ? `evento=${selectedEvent.id}` : "";
   const cards = [
@@ -126,8 +141,13 @@ export default async function DashboardPage({
       </section>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-        <h2 className="mb-1 text-lg font-black text-slate-950">Resumen de premios del evento</h2>
-        <p className="mb-3 text-sm text-slate-600">{selectedEvent ? selectedEvent.displayName : "Seleccione un evento para ver el resumen."}</p>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="mb-1 text-lg font-black text-slate-950">Resumen de premios del evento</h2>
+            <p className="text-sm text-slate-600">{selectedEvent ? selectedEvent.displayName : "Seleccione un evento para ver el resumen."}</p>
+          </div>
+          <ExportExcelButton rows={prizeSummaryRows} fileName="resumen-dashboard-premios" />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[780px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">

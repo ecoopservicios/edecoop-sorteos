@@ -4,21 +4,29 @@ import { Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent } from "react";
 
-export function AuditFilters({ users }: { users: Array<{ id: string; name: string }> }) {
+export function AuditFilters({
+  users,
+  basePath = "/bitacora",
+  fixedParams
+}: {
+  users: Array<{ id: string; name: string }>;
+  basePath?: string;
+  fixedParams?: Record<string, string>;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(fixedParams);
 
     for (const key of ["desde", "hasta", "usuario", "accion", "modulo", "q"]) {
       const value = String(form.get(key) || "").trim();
       if (value) params.set(key, value);
     }
 
-    router.push(`/bitacora${params.toString() ? `?${params.toString()}` : ""}`);
+    router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
   return (
@@ -62,7 +70,10 @@ export function AuditFilters({ users }: { users: Array<{ id: string; name: strin
         </button>
         <button
           type="button"
-          onClick={() => router.push("/bitacora")}
+          onClick={() => {
+            const params = new URLSearchParams(fixedParams);
+            router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
+          }}
           className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-100"
         >
           <X size={17} />

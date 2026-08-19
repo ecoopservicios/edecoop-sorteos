@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, PackageCheck } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { ExportExcelButton } from "@/components/export-excel-button";
 
 type PrizeStatusRow = {
   id: string;
@@ -29,6 +30,17 @@ export function PrizeStatusTable({ rows }: { rows: PrizeStatusRow[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const exportRows = rows.map((row) => ({
+    Fecha: new Date(row.createdAt).toLocaleString("es-DO"),
+    Codigo: row.code,
+    Participante: row.participantName,
+    Telefono: row.participantPhone || "",
+    Evento: row.eventName,
+    Premio: row.prizeName,
+    Tipo: row.environmentLabel,
+    Responsable: row.responsibleName || "",
+    Estado: row.statusLabel
+  }));
 
   async function updateStatus(id: string, status: string) {
     setBusyId(id);
@@ -58,7 +70,10 @@ export function PrizeStatusTable({ rows }: { rows: PrizeStatusRow[] }) {
           <PackageCheck className="text-emerald-800" size={22} />
           <h2 className="text-lg font-black text-slate-950">Premios ganados</h2>
         </div>
-        {message ? <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{message}</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportExcelButton rows={exportRows} fileName="premios-otorgados" />
+          {message ? <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{message}</p> : null}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1160px] text-left text-sm">

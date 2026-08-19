@@ -3,8 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Power, Save, Trash2 } from "lucide-react";
-import { EnrollmentCompanyManager } from "@/components/enrollment-company-manager";
 import { notify } from "@/lib/toast";
+import { ExportExcelButton } from "@/components/export-excel-button";
 
 type CooperativeSettings = {
   whatsapp: string;
@@ -15,14 +15,6 @@ type CooperativeSettings = {
   instagram: string;
   x: string;
   youtube: string;
-};
-
-type Company = {
-  id: string;
-  name: string;
-  isActive: boolean;
-  dataUpdateEnabled: boolean;
-  dataUpdateLookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" | null;
 };
 
 type ZoneRow = {
@@ -48,18 +40,18 @@ async function readJson(response: Response) {
 }
 
 export function SettingsManager({
-  formId,
-  companies,
   settings,
   zones
 }: {
-  formId: string;
-  companies: Company[];
   settings: CooperativeSettings;
   zones: ZoneRow[];
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
+  const zoneExportRows = zones.map((zone) => ({
+    Zona: zone.name,
+    Estado: zone.isActive ? "Activa" : "Inactiva"
+  }));
 
   async function saveCooperativeSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,11 +145,12 @@ export function SettingsManager({
         </form>
       </section>
 
-      <EnrollmentCompanyManager formId={formId} companies={companies} />
-
       <section className="grid gap-5">
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-black text-slate-950">Zonas</h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-black text-slate-950">Zonas</h2>
+            <ExportExcelButton rows={zoneExportRows} fileName="zonas" />
+          </div>
           <form onSubmit={createZone} className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
             <input name="name" required placeholder="Nombre de zona" className={inputClass} />
             <button disabled={busyId === "zone"} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">

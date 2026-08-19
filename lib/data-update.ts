@@ -41,9 +41,10 @@ export function lookupFieldLabel(field: MemberLookupField) {
   return field === MemberLookupField.DOCUMENT_ID ? "Cedula" : "Numero de empleado";
 }
 
-export function buildSupportWhatsappUrl(phone: string, companyName: string) {
+export function buildSupportWhatsappUrl(phone: string, companyName: string, messageTemplate?: string) {
   const normalized = normalizeDigits(phone);
-  const text = `Hola EDECOOP, necesito actualizar mis datos y no aparezco en el portal para la empresa ${companyName}.`;
+  const text = (messageTemplate || "Hola EDECOOP, necesito actualizar mis datos y no aparezco en el portal para la empresa {empresa}.")
+    .replaceAll("{empresa}", companyName);
   if (!normalized) return `https://wa.me/?text=${encodeURIComponent(text)}`;
   return `https://wa.me/${normalized.startsWith("1") ? normalized : `1${normalized}`}?text=${encodeURIComponent(text)}`;
 }

@@ -432,6 +432,7 @@ model MemberDataUpdateSubmission {
   phoneValidationStatus      ContactValidationStatus
   whatsappValidationStatus   ContactValidationStatus
   emailValidationStatus      ContactValidationStatus
+  customResponses            Json?
   status                     DataUpdateStatus         @default(RECEIVED)
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt

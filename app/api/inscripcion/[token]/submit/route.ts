@@ -99,31 +99,32 @@ async function buildInstantPrizeLink({
   }
 
   const pending = existing?.links.find((link) => link.status === DigitalLinkStatus.PENDING);
+  const participantId =
+    existing?.id ||
+    (
+      await prisma.digitalParticipant.create({
+        data: {
+          firstName,
+          lastName,
+          nie: documentId,
+          email,
+          name,
+          phone
+        }
+      })
+    ).id;
   const link =
     pending ||
     (await prisma.digitalLink.create({
       data: {
         token: generateToken(),
-        participantId:
-          existing?.id ||
-          (
-            await prisma.digitalParticipant.create({
-              data: {
-                firstName,
-                lastName,
-                nie: documentId,
-                email,
-                name,
-                phone
-              }
-            })
-          ).id,
+        participantId,
         createdById: creator.id
       }
     }));
 
   const baseUrl = process.env.APP_BASE_URL || request.nextUrl.origin;
-  return { id: link.id, url: `${baseUrl}/ruleta/digital/${link.token}`, eventEditionId: eventId, eventName };
+  return { id: link.id, participantId, url: `${baseUrl}/ruleta/digital/${link.token}`, eventEditionId: eventId, eventName };
 }
 
 export async function POST(
@@ -131,10 +132,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const channel =
-    request.nextUrl.searchParams.get("channel") === "presential"
-      ? EnrollmentSubmissionChannel.PRESENTIAL_DIGITAL
-      : EnrollmentSubmissionChannel.VIRTUAL;
+  const channel = EnrollmentSubmissionChannel.VIRTUAL;
   const formConfig = await prisma.enrollmentForm.findUnique({ where: { token } });
   if (!formConfig || !formConfig.isActive) return jsonError("Formulario no disponible.", 404);
 
@@ -172,7 +170,7 @@ export async function POST(
     const duplicate = await checkPersonDuplicate({ firstName, lastName, documentId, employeeNumber, phone: mobilePhone, email });
     if (duplicate) return NextResponse.json({ error: duplicate.message, field: duplicate.field }, { status: 409 });
 
-    const shouldOfferInstantPrize = channel === EnrollmentSubmissionChannel.PRESENTIAL_DIGITAL || formConfig.allowInstantPrize;
+    const shouldOfferInstantPrize = formConfig.allowInstantPrize;
 
     const campaignEvent = shouldOfferInstantPrize
       ? await prisma.eventEdition.findFirst({
@@ -224,6 +222,7 @@ export async function POST(
         acceptsTerms: true,
         channel,
         eventEditionId: campaignEvent?.id || null,
+        digitalParticipantId: prizeLink?.participantId || null,
         digitalLinkId: prizeLink?.id || null
       }
     });

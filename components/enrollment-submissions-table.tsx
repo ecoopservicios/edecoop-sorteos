@@ -14,6 +14,8 @@ import { enrollmentStatusLabel } from "@/lib/enrollment";
 
 import { notify } from "@/lib/toast";
 
+import { ExportExcelButton } from "@/components/export-excel-button";
+
 
 
 type Row = {
@@ -54,8 +56,6 @@ type Row = {
 
 function channelLabel(channel: EnrollmentSubmissionChannel) {
 
-  if (channel === "PRESENTIAL_DIGITAL") return "Presencial digital";
-
   if (channel === "PRESENTIAL_FISICO") return "Formulario físico";
 
   if (channel === "PRESENTIAL") return "Presencial";
@@ -93,6 +93,22 @@ export function EnrollmentSubmissionsTable({ rows }: { rows: Row[] }) {
   const [channelFilter, setChannelFilter] = useState<"ALL" | EnrollmentSubmissionChannel>("ALL");
 
   const filteredRows = channelFilter === "ALL" ? rows : rows.filter((row) => row.channel === channelFilter);
+  const exportRows = filteredRows.map((row) => ({
+    Fecha: row.createdAt,
+    Modalidad: channelLabel(row.channel),
+    Solicitante: row.name,
+    Cedula: row.documentId,
+    Celular: row.mobilePhone,
+    Correo: row.email,
+    Empresa: row.companyName,
+    Oficina: row.workplace,
+    "No. empleado": row.employeeNumber,
+    "% descuento": row.salaryDeductionPercent,
+    Premio: row.receivedPrize ? "Recibido presencial" : row.prizeLink ? "Link generado" : "No generado",
+    Codigo: row.prizeCode || "",
+    Estado: enrollmentStatusLabel(row.followUpStatus),
+    "Link premio": row.prizeLink
+  }));
 
 
 
@@ -170,8 +186,6 @@ export function EnrollmentSubmissionsTable({ rows }: { rows: Row[] }) {
 
             <option value="VIRTUAL">Virtual</option>
 
-            <option value="PRESENTIAL_DIGITAL">Presencial digital</option>
-
             <option value="PRESENTIAL_FISICO">Formulario físico</option>
 
             <option value="PRESENTIAL">Presencial anterior</option>
@@ -179,6 +193,8 @@ export function EnrollmentSubmissionsTable({ rows }: { rows: Row[] }) {
           </select>
 
         </label>
+
+        <ExportExcelButton rows={exportRows} fileName="solicitudes-afiliacion" />
 
       </div>
 

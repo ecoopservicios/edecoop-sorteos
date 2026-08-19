@@ -32,9 +32,7 @@ export async function POST(request: NextRequest) {
 
   const destination = user.mustChangePassword
     ? "/cambiar-clave"
-    : user.role === "ADMIN"
-      ? "/dashboard"
-      : "/ruleta/presencial";
+    : "/proyectos";
   const response = redirectTo(request, destination);
   await setSessionCookie(response, user.id);
   return response;

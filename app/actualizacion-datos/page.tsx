@@ -2,15 +2,20 @@ import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import { DataUpdateAdmin } from "@/components/data-update-admin";
+import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureEnrollmentForm } from "@/lib/enrollment-server";
 
 export default async function DataUpdateAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== UserRole.ADMIN) redirect("/dashboard");
 
-  const [members, updates, enrollmentCompanies] = await Promise.all([
+  const [form, texts, questions, members, updates, enrollmentCompanies] = await Promise.all([
+    ensureEnrollmentForm(user.id),
+    getDataUpdateTextSettings(),
+    getDataUpdateQuestions(),
     prisma.memberDirectory.findMany({
       include: { enrollmentCompany: true },
       orderBy: { createdAt: "desc" },
@@ -26,13 +31,16 @@ export default async function DataUpdateAdminPage() {
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:3002";
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} module="data-update">
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-950">Actualizacion de Datos</h1>
         <p className="text-slate-600">Configura empresas, base de socios y solicitudes recibidas.</p>
       </div>
       <DataUpdateAdmin
+        formId={form.id}
         publicUrl={`${baseUrl}/actualizar-datos`}
+        texts={texts}
+        questions={questions}
         enrollmentCompanies={enrollmentCompanies.map((company) => ({
           id: company.id,
           name: company.name,

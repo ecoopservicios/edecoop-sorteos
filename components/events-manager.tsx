@@ -14,6 +14,8 @@ import { MONTHS, eventStatusLabel, monthLabel, prizeTypeLabel } from "@/lib/even
 
 import { notify } from "@/lib/toast";
 
+import { ExportExcelButton } from "@/components/export-excel-button";
+
 
 
 type EventTypeRow = {
@@ -259,8 +261,6 @@ function participantStatusLabel(status: string) {
 
 
 function participantChannelLabel(channel: string) {
-
-  if (channel === "PRESENTIAL_DIGITAL") return "Presencial digital";
 
   if (channel === "PRESENTIAL_FISICO") return "Formulario físico";
 
@@ -1137,10 +1137,23 @@ export function EventsManager({
 
 
   function renderEventTable(rows: EventRow[], historical = false) {
+    const eventExportRows = rows.map((event) => ({
+      Evento: event.displayName,
+      Tipo: event.eventType.name,
+      Mes: monthLabel(event.month),
+      Año: event.year,
+      Zona: event.usesZones ? "Si" : "No",
+      Participantes: event.participantCount,
+      Premios: event.prizes.length,
+      Estado: eventStatusLabel(event.status)
+    }));
 
     return (
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex justify-end">
+          <ExportExcelButton rows={eventExportRows} fileName={historical ? "eventos-historicos" : "eventos"} />
+        </div>
 
         <div className="overflow-x-auto">
 
@@ -1378,7 +1391,21 @@ export function EventsManager({
 
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
 
-            <h2 className="mb-3 text-lg font-black text-slate-950">Premios relacionados con {selectedPrizeEvent.displayName}</h2>
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-black text-slate-950">Premios relacionados con {selectedPrizeEvent.displayName}</h2>
+              <ExportExcelButton
+                rows={selectedPrizeEvent.prizes.map((prize) => ({
+                  Tipo: prizeTypeLabel(prize.type),
+                  Premio: prize.name,
+                  Zona: prize.zone || "",
+                  Disponible: prize.availableQuantity,
+                  Otorgada: prize.awardedQuantity,
+                  Estado: prize.isActive ? "Activo" : "Inactivo",
+                  Evento: selectedPrizeEvent.displayName
+                }))}
+                fileName={`premios-${selectedPrizeEvent.displayName}`}
+              />
+            </div>
 
             <div className="overflow-x-auto">
 

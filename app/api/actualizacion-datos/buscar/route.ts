@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
-import { getCooperativeSettings } from "@/lib/app-settings";
+import { getCooperativeSettings, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { buildSupportWhatsappUrl, lookupFieldLabel, normalizeLookupValue } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 
@@ -23,13 +23,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (!member) {
-      const settings = await getCooperativeSettings();
+      const [settings, texts] = await Promise.all([getCooperativeSettings(), getDataUpdateTextSettings()]);
       const supportWhatsapp = settings.whatsapp || "WhatsApp de EDECOOP";
       return NextResponse.json({
         found: false,
-        message: "No encontramos sus datos en nuestros registros.",
+        message: texts.notFoundMessage,
         supportWhatsapp,
-        whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name)
+        whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name, texts.whatsappMessage)
       });
     }
 
