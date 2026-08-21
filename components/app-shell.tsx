@@ -9,7 +9,7 @@ export function AppShell({
   children
 }: {
   user: { name: string; role: UserRole; mustChangePassword?: boolean };
-  module?: "affiliation" | "data-update";
+  module?: "affiliation" | "raffles" | "data-update";
   children: React.ReactNode;
 }) {
   if (user.mustChangePassword) redirect("/cambiar-clave");

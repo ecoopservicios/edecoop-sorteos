@@ -297,6 +297,8 @@ model EventEdition {
   usesZones   Boolean            @default(false)
   status      EventEditionStatus @default(ACTIVE)
   eventDate   DateTime?
+  promotionStartAt DateTime?
+  promotionEndAt   DateTime?
   closedAt    DateTime?
   createdById String?
   createdAt   DateTime           @default(now())

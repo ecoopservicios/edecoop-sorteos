@@ -21,7 +21,7 @@ export default async function WinnersPage() {
   });
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} module="raffles">
       <div className="mb-5 min-w-0 sm:mb-6">
         <h1 className="text-xl font-black text-slate-950 sm:text-2xl">Ganadores</h1>
         <p className="text-slate-600">

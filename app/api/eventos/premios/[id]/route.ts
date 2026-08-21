@@ -35,6 +35,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.availableQuantity !== undefined) {
     const availableQuantity = Number(body.availableQuantity);
     if (!Number.isInteger(availableQuantity) || availableQuantity < 0) return jsonError("Cantidad disponible invalida.", 422);
+    if (availableQuantity < current.awardedQuantity) {
+      return jsonError(`La cantidad disponible no puede ser menor que la cantidad otorgada (${current.awardedQuantity}).`, 422);
+    }
     data.availableQuantity = availableQuantity;
   }
   if (body.zone !== undefined) {

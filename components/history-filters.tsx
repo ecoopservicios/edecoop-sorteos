@@ -20,6 +20,9 @@ export function HistoryFilters({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const params = new URLSearchParams();
+    const currentModule = searchParams.get("modulo");
+
+    if (currentModule) params.set("modulo", currentModule);
 
     for (const key of ["desde", "hasta", "tipo", "estado", "evento", "premio", "promotora", "q"]) {
       const value = String(form.get(key) || "").trim();
@@ -83,7 +86,7 @@ export function HistoryFilters({
         </button>
         <button
           type="button"
-          onClick={() => router.push("/historico")}
+          onClick={() => router.push(searchParams.get("modulo") === "sorteos" ? "/historico?modulo=sorteos" : "/historico")}
           className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-100"
         >
           <X size={17} />

@@ -333,10 +333,14 @@ export async function POST(request: NextRequest) {
   if (!file.name.toLowerCase().endsWith(".csv")) return jsonError("El archivo debe ser CSV.", 422);
 
   const formConfig = await ensureEnrollmentForm(user!.id);
+  const now = new Date();
   const instantEvent = await prisma.eventEdition.findFirst({
     where: {
       status: "ACTIVE",
-      eventType: { code: EVENT_TYPE_CODES.AFFILIATION_INSTANT }
+      eventType: { code: EVENT_TYPE_CODES.AFFILIATION_INSTANT },
+      promotionStartAt: { lte: now },
+      promotionEndAt: { gte: now },
+      prizes: { some: { isActive: true, availableQuantity: { gt: 0 } } }
     },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     select: { id: true }
@@ -356,7 +360,7 @@ export async function POST(request: NextRequest) {
         let digitalParticipantId: string | null = null;
         let digitalLinkId: string | null = null;
 
-        if (!row.receivedPrize) {
+        if (!row.receivedPrize && instantEvent) {
           const participant = await tx.digitalParticipant.create({
             data: {
               firstName: row.firstName,

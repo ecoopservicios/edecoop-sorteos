@@ -39,7 +39,7 @@ export function ChangePasswordForm({
     }
 
     notify("Contraseña actualizada correctamente.", "success");
-    window.location.assign("/dashboard");
+    window.location.assign("/proyectos");
   }
 
   return (

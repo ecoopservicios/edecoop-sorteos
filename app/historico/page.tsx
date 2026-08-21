@@ -6,7 +6,10 @@ import { HistoryFilters } from "@/components/history-filters";
 import { PrizeStatusTable } from "@/components/prize-status-table";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { EVENT_TYPE_CODES } from "@/lib/events";
 import { environmentLabel, prizeStatusLabel } from "@/lib/labels";
+
+const affiliationTypeCodes = [EVENT_TYPE_CODES.AFFILIATION_INSTANT, EVENT_TYPE_CODES.AFFILIATION_FINAL];
 
 export default async function HistoryPage({
   searchParams
@@ -19,13 +22,23 @@ export default async function HistoryPage({
     evento?: string;
     premio?: string;
     promotora?: string;
+    modulo?: string;
     q?: string;
   }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const isAdmin = user.role === UserRole.ADMIN;
-  const { desde, hasta, tipo, estado, evento, premio, promotora, q } = await searchParams;
+  const { desde, hasta, tipo, estado, evento, premio, promotora, modulo, q } = await searchParams;
+  const isRafflesModule = modulo === "sorteos";
+  const moduleEventFilter: Prisma.RaffleResultWhereInput = isRafflesModule
+    ? { eventEdition: { is: { eventType: { code: { notIn: affiliationTypeCodes } } } } }
+    : {
+        OR: [
+          { eventEditionId: null },
+          { eventEdition: { is: { eventType: { code: { in: affiliationTypeCodes } } } } }
+        ]
+      };
   const environment =
     tipo === "presencial" ? RaffleEnvironment.PRESENTIAL : tipo === "virtual" ? RaffleEnvironment.DIGITAL : undefined;
   const status =
@@ -47,6 +60,7 @@ export default async function HistoryPage({
 
   const search = q?.trim();
   const where: Prisma.RaffleResultWhereInput = {
+    AND: [moduleEventFilter],
     environment,
     status,
     eventEditionId: evento || undefined,
@@ -87,6 +101,9 @@ export default async function HistoryPage({
       select: { id: true, name: true }
     }),
     prisma.eventEdition.findMany({
+      where: {
+        eventType: { code: isRafflesModule ? { notIn: affiliationTypeCodes } : { in: affiliationTypeCodes } }
+      },
       orderBy: [{ year: "desc" }, { month: "desc" }],
       select: { id: true, displayName: true }
     })
@@ -108,7 +125,7 @@ export default async function HistoryPage({
   }));
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} module={modulo === "sorteos" ? "raffles" : "affiliation"}>
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-950">Premios Otorgados</h1>
         <p className="text-slate-600">

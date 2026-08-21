@@ -171,12 +171,16 @@ export async function POST(
     if (duplicate) return NextResponse.json({ error: duplicate.message, field: duplicate.field }, { status: 409 });
 
     const shouldOfferInstantPrize = formConfig.allowInstantPrize;
+    const now = new Date();
 
     const campaignEvent = shouldOfferInstantPrize
       ? await prisma.eventEdition.findFirst({
           where: {
             status: "ACTIVE",
-            eventType: { code: EVENT_TYPE_CODES.AFFILIATION_INSTANT }
+            eventType: { code: EVENT_TYPE_CODES.AFFILIATION_INSTANT },
+            promotionStartAt: { lte: now },
+            promotionEndAt: { gte: now },
+            prizes: { some: { isActive: true, availableQuantity: { gt: 0 } } }
           },
           orderBy: [{ year: "desc" }, { month: "desc" }],
           select: { id: true, displayName: true }

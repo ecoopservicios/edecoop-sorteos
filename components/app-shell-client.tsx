@@ -6,6 +6,7 @@ import {
   BarChart3,
   ClipboardPenLine,
   Gift,
+  House,
   PackageCheck,
   PanelsTopLeft,
   RefreshCw,
@@ -20,16 +21,16 @@ import { LogoutButton } from "@/components/logout-button";
 type ShellRole = "ADMIN" | "PROMOTER";
 
 const adminItems = [
+  { href: "/afiliacion", label: "Inicio Afiliacion", icon: House },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
-  { href: "/premios", label: "Eventos", icon: WalletCards },
   { href: "/historico", label: "Premios Otorgados", icon: PackageCheck },
   { href: "/inscripcion-virtual", label: "Formularios de Afiliacion", icon: ClipboardPenLine },
-  { href: "/ganadores", label: "Ganadores", icon: Trophy },
   { href: "/configuracion", label: "Configuracion", icon: Settings }
 ];
 
 const promoterItems = [
+  { href: "/afiliacion", label: "Inicio Afiliacion", icon: House },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/ruleta/presencial", label: "Participacion Presencial", icon: Gift },
   { href: "/inscripcion-virtual?tab=digital", label: "Afiliacion Digital", icon: ClipboardPenLine },
@@ -37,6 +38,13 @@ const promoterItems = [
 ];
 
 const dataUpdateItems = [{ href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw }];
+
+const raffleItems = [
+  { href: "/sorteos", label: "Inicio Sorteos", icon: Trophy },
+  { href: "/premios", label: "Otros Sorteos", icon: WalletCards },
+  { href: "/historico?modulo=sorteos", label: "Premios Otorgados", icon: PackageCheck },
+  { href: "/ganadores", label: "Ganadores", icon: Trophy }
+];
 
 function isActive(pathname: string, href: string) {
   const baseHref = href.split("?")[0];
@@ -49,13 +57,13 @@ export function AppShellClient({
   children
 }: {
   user: { name: string; role: ShellRole };
-  module?: "affiliation" | "data-update";
+  module?: "affiliation" | "raffles" | "data-update";
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const items = module === "data-update" ? dataUpdateItems : user.role === "ADMIN" ? adminItems : promoterItems;
-  const appTitle = module === "data-update" ? "Actualizacion de datos" : "Sorteos instantaneos";
+  const items = module === "data-update" ? dataUpdateItems : module === "raffles" ? raffleItems : user.role === "ADMIN" ? adminItems : promoterItems;
+  const appTitle = module === "data-update" ? "Actualizacion de datos" : module === "raffles" ? "Sorteos" : "Afiliacion";
 
   useEffect(() => {
     setMobileMenuOpen(false);

@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { EVENT_TYPE_CODES, ensureBaseEventTypes } from "@/lib/events";
 
+const affiliationTypeCodes = [EVENT_TYPE_CODES.AFFILIATION_INSTANT, EVENT_TYPE_CODES.AFFILIATION_FINAL];
+
 export default async function EventsPage({
   searchParams
 }: {
@@ -22,10 +24,14 @@ export default async function EventsPage({
 
   const [eventTypes, activeEvents, historicalEvents, submissions, manualParticipants, eventPrizeResults, zones] = await Promise.all([
     prisma.eventType.findMany({
+      where: { code: { notIn: affiliationTypeCodes } },
       orderBy: [{ isActive: "desc" }, { name: "asc" }]
     }),
     prisma.eventEdition.findMany({
-      where: { status: { not: EventEditionStatus.CLOSED } },
+      where: {
+        status: { not: EventEditionStatus.CLOSED },
+        eventType: { code: { notIn: affiliationTypeCodes } }
+      },
       include: {
         eventType: true,
         prizes: { orderBy: { createdAt: "desc" } },
@@ -35,7 +41,10 @@ export default async function EventsPage({
       orderBy: [{ year: "desc" }, { month: "desc" }]
     }),
     prisma.eventEdition.findMany({
-      where: { status: EventEditionStatus.CLOSED },
+      where: {
+        status: EventEditionStatus.CLOSED,
+        eventType: { code: { notIn: affiliationTypeCodes } }
+      },
       include: {
         eventType: true,
         prizes: { orderBy: { createdAt: "desc" } },
@@ -57,7 +66,10 @@ export default async function EventsPage({
     }),
     prisma.raffleResult.groupBy({
       by: ["eventEditionId", "prizeId"],
-      where: { eventEditionId: { not: null } },
+      where: {
+        eventEditionId: { not: null },
+        eventEdition: { eventType: { code: { notIn: affiliationTypeCodes } } }
+      },
       _count: { _all: true }
     }),
     prisma.eventZone.findMany({
@@ -190,10 +202,10 @@ export default async function EventsPage({
   ];
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} module="raffles">
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-slate-950">Eventos</h1>
-        <p className="text-slate-600">Crea eventos por mes y año, asocia premios, consulta participantes y conserva históricos cerrados.</p>
+        <h1 className="text-2xl font-black text-slate-950">Otros sorteos</h1>
+        <p className="text-slate-600">Crea eventos especiales distintos de afiliacion, asocia premios, consulta participantes y conserva históricos cerrados.</p>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map((item) => (

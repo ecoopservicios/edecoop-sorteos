@@ -5,7 +5,9 @@ import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { eventStatusLabel, monthLabel, prizeTypeLabel } from "@/lib/events";
+import { EVENT_TYPE_CODES, eventStatusLabel, monthLabel, prizeTypeLabel } from "@/lib/events";
+
+const affiliationTypeCodes = [EVENT_TYPE_CODES.AFFILIATION_INSTANT, EVENT_TYPE_CODES.AFFILIATION_FINAL];
 
 export default async function DashboardPage({
   searchParams
@@ -18,7 +20,10 @@ export default async function DashboardPage({
   const { evento } = await searchParams;
 
   const events = await prisma.eventEdition.findMany({
-    where: { status: { not: EventEditionStatus.CLOSED } },
+    where: {
+      status: { not: EventEditionStatus.CLOSED },
+      eventType: { code: { in: affiliationTypeCodes } }
+    },
     include: {
       eventType: true,
       prizes: { orderBy: { name: "asc" } }
@@ -81,9 +86,9 @@ export default async function DashboardPage({
 
   const eventQuery = selectedEvent ? `evento=${selectedEvent.id}` : "";
   const cards = [
-    { label: "Participantes", value: participantCount, href: isAdmin ? "/premios?tab=participantes" : "/dashboard" },
-    { label: "Premios configurados", value: selectedEvent?.prizes.length || 0, href: isAdmin ? "/premios?tab=premios" : "/dashboard" },
-    { label: "Disponibles", value: totalAvailable, href: isAdmin ? "/premios?tab=premios" : "/dashboard" },
+    { label: "Participantes", value: participantCount, href: isAdmin ? "/inscripcion-virtual?tab=respuestas" : "/dashboard" },
+    { label: "Premios configurados", value: selectedEvent?.prizes.length || 0, href: isAdmin ? "/inscripcion-virtual?tab=premios" : "/dashboard" },
+    { label: "Disponibles", value: totalAvailable, href: isAdmin ? "/inscripcion-virtual?tab=premios" : "/dashboard" },
     { label: "Premios entregados", value: delivered, href: eventQuery ? `/historico?${eventQuery}` : "/historico" },
     { label: "Presenciales", value: presential, href: eventQuery ? `/historico?tipo=presencial&${eventQuery}` : "/historico?tipo=presencial" },
     { label: "Virtuales", value: digital, href: eventQuery ? `/historico?tipo=virtual&${eventQuery}` : "/historico?tipo=virtual" },

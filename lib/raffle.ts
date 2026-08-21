@@ -72,6 +72,12 @@ async function activeEventWithPrizes(tx: Prisma.TransactionClient, eventEditionI
     }
   });
   if (!event) throw new Error("El evento seleccionado no esta activo o no existe.");
+  if (event.eventType.code === EVENT_TYPE_CODES.AFFILIATION_INSTANT || event.eventType.code === EVENT_TYPE_CODES.AFFILIATION_FINAL) {
+    const now = new Date();
+    if (!event.promotionStartAt || !event.promotionEndAt || event.promotionStartAt > now || event.promotionEndAt < now) {
+      throw new Error("La promocion de afiliacion no esta vigente.");
+    }
+  }
   if (!event.prizes.length) throw new Error("El evento seleccionado no tiene premios disponibles.");
   return event;
 }
@@ -295,6 +301,10 @@ export async function drawAffiliationFinal(responsibleUserId: string, eventEditi
     });
 
     if (!event) throw new Error("Debe seleccionar un evento final activo.");
+    const now = new Date();
+    if (!event.promotionStartAt || !event.promotionEndAt || event.promotionStartAt > now || event.promotionEndAt < now) {
+      throw new Error("La promocion de afiliacion no esta vigente.");
+    }
     if (event.prizes.length !== 1) throw new Error("El evento final debe tener un solo premio disponible.");
 
     const campaignEvent = await tx.eventEdition.findFirst({

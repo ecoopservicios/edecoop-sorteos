@@ -43,6 +43,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const month = Number(body.month || event.month);
   const year = Number(body.year || event.year);
   const usesZones = body.usesZones === undefined ? event.usesZones : Boolean(body.usesZones);
+  const promotionStartAt =
+    body.promotionStartAt === undefined ? event.promotionStartAt : new Date(String(body.promotionStartAt || ""));
+  const promotionEndAt =
+    body.promotionEndAt === undefined ? event.promotionEndAt : new Date(String(body.promotionEndAt || ""));
+
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2026) {
+    return jsonError("Debe indicar mes y año validos.", 422);
+  }
+  if (promotionStartAt && Number.isNaN(promotionStartAt.getTime())) return jsonError("Fecha de inicio invalida.", 422);
+  if (promotionEndAt && Number.isNaN(promotionEndAt.getTime())) return jsonError("Fecha fin invalida.", 422);
+  if (promotionStartAt && promotionEndAt && promotionEndAt < promotionStartAt) {
+    return jsonError("La fecha fin no puede ser menor que la fecha de inicio.", 422);
+  }
+
   const displayName = eventDisplayName(event.eventType.name, month, year);
   const updated = await prisma.eventEdition.update({
     where: { id },
@@ -51,7 +65,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       year,
       usesZones,
       displayName,
-      eventDate: new Date(Date.UTC(year, month - 1, 1))
+      eventDate: new Date(Date.UTC(year, month - 1, 1)),
+      promotionStartAt,
+      promotionEndAt
     }
   });
 

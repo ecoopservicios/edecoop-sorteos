@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardPenLine, RefreshCw } from "lucide-react";
+import { ClipboardPenLine, Gift, RefreshCw } from "lucide-react";
 import { UserRole } from "@prisma/client";
 
 import { LogoutButton } from "@/components/logout-button";
@@ -27,13 +27,13 @@ export default async function ProjectsPage() {
           <p className="text-sm font-bold uppercase tracking-wide text-emerald-700">EDECOOP</p>
           <h1 className="text-3xl font-black text-slate-950 sm:text-4xl">Selecciona un proyecto</h1>
           <p className="mt-2 max-w-2xl text-slate-600">
-            Accede al modulo de afiliacion o al modulo de actualizacion de datos desde una sola plataforma.
+            Accede al modulo de afiliacion, sorteos o actualizacion de datos desde una sola plataforma.
           </p>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-3">
           <Link
-            href="/dashboard"
+            href="/afiliacion"
             className="group flex min-h-[230px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
           >
             <div>
@@ -42,11 +42,42 @@ export default async function ProjectsPage() {
               </div>
               <h2 className="text-2xl font-black text-slate-950">Afiliacion</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Gestiona sorteos instantaneos, formularios de afiliacion, premios, historicos, eventos y participantes.
+                Gestiona formularios de afiliacion, ruleta presencial, premios instantaneos, solicitudes e historicos.
               </p>
             </div>
             <span className="mt-6 text-sm font-black text-emerald-800 group-hover:text-emerald-900">Entrar a afiliacion</span>
           </Link>
+
+          {isAdmin ? (
+            <Link
+              href="/sorteos"
+              className="group flex min-h-[230px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+            >
+              <div>
+                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-md bg-sky-50 text-sky-800">
+                  <Gift size={26} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-950">Sorteos</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Gestiona eventos especiales, bases de participantes, premios, ganadores y reportes de sorteos.
+                </p>
+              </div>
+              <span className="mt-6 text-sm font-black text-emerald-800 group-hover:text-emerald-900">Entrar a sorteos</span>
+            </Link>
+          ) : (
+            <div className="flex min-h-[230px] flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 p-6 opacity-80">
+              <div>
+                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                  <Gift size={26} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-500">Sorteos</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  Este proyecto esta disponible solo para usuarios administradores.
+                </p>
+              </div>
+              <span className="mt-6 text-sm font-black text-slate-500">Acceso restringido</span>
+            </div>
+          )}
 
           {isAdmin ? (
             <Link
