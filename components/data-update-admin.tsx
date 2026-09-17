@@ -17,11 +17,10 @@ type EnrollmentCompanyRow = {
 type MemberRow = {
   id: string;
   companyName: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   documentId: string | null;
   employeeNumber: string | null;
-  personalPhone: string | null;
-  personalEmail: string | null;
 };
 
 type UpdateRow = {
@@ -454,11 +453,10 @@ export function DataUpdateAdmin({
           <ExportExcelButton
             rows={members.map((row) => ({
               Empresa: row.companyName,
-              Nombre: row.name,
+              Nombres: row.firstName,
+              Apellidos: row.lastName,
               Cedula: row.documentId,
-              Empleado: row.employeeNumber,
-              Telefono: row.personalPhone,
-              Correo: row.personalEmail
+              Empleado: row.employeeNumber
             }))}
             fileName="base-socios"
           />
@@ -485,26 +483,24 @@ export function DataUpdateAdmin({
           </button>
         </div>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-3 py-2">Empresa</th>
-                <th className="px-3 py-2">Nombre</th>
+                <th className="px-3 py-2">Nombres</th>
+                <th className="px-3 py-2">Apellidos</th>
                 <th className="px-3 py-2">Cedula</th>
                 <th className="px-3 py-2">Empleado</th>
-                <th className="px-3 py-2">Telefono</th>
-                <th className="px-3 py-2">Correo</th>
               </tr>
             </thead>
             <tbody>
               {members.map((row) => (
                 <tr key={row.id} className="border-t border-slate-100">
                   <td className="px-3 py-2">{row.companyName}</td>
-                  <td className="px-3 py-2 font-semibold">{row.name}</td>
+                  <td className="px-3 py-2 font-semibold">{row.firstName}</td>
+                  <td className="px-3 py-2">{row.lastName}</td>
                   <td className="px-3 py-2">{row.documentId}</td>
                   <td className="px-3 py-2">{row.employeeNumber}</td>
-                  <td className="px-3 py-2">{row.personalPhone}</td>
-                  <td className="px-3 py-2">{row.personalEmail}</td>
                 </tr>
               ))}
             </tbody>

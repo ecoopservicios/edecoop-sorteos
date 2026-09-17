@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { jsonError } from "@/lib/api";
 import { canAccessAdmin, getCurrentUser } from "@/lib/auth";
-import { normalizeDigits, tenDigitContactPhone } from "@/lib/data-update";
+import { normalizeDigits } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
 
@@ -13,9 +13,6 @@ type ParsedRow = {
   lastName: string;
   documentId: string | null;
   employeeNumber: string | null;
-  personalPhone: string | null;
-  whatsappPhone: string | null;
-  personalEmail: string | null;
 };
 
 type BulkError = {
@@ -23,7 +20,7 @@ type BulkError = {
   message: string;
 };
 
-const HEADERS = ["nombres", "apellidos", "cedula", "numero_empleado", "telefono_actual", "whatsapp_actual", "correo_actual"];
+const HEADERS = ["nombres", "apellidos", "cedula", "numero_empleado"];
 
 function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
@@ -31,22 +28,6 @@ function normalizeHeader(value: string) {
 
 function text(value: unknown) {
   return String(value ?? "").trim();
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function normalizeOptionalEmail(value: string) {
-  const email = value.trim().toLowerCase();
-  if (!email) return null;
-  if (!isValidEmail(email)) throw new Error("Correo actual invalido.");
-  return email;
-}
-
-function normalizeOptionalPhone(value: string, label: string) {
-  if (!value.trim()) return null;
-  return tenDigitContactPhone(value, label);
 }
 
 function normalizeDocument(value: string, required: boolean) {
@@ -104,9 +85,6 @@ function parseRows(buffer: Buffer, lookupField: MemberLookupField) {
     let lastName = "";
     let documentId: string | null = null;
     let employeeNumber: string | null = null;
-    let personalPhone: string | null = null;
-    let whatsappPhone: string | null = null;
-    let personalEmail: string | null = null;
 
     try {
       firstName = validatePersonName(normalized.nombres || "", "Nombres");
@@ -128,22 +106,6 @@ function parseRows(buffer: Buffer, lookupField: MemberLookupField) {
     } catch (error) {
       rowErrors.push(error instanceof Error ? error.message : "Numero de empleado invalido.");
     }
-    try {
-      personalPhone = normalizeOptionalPhone(normalized.telefono_actual || "", "Telefono actual");
-    } catch (error) {
-      rowErrors.push(error instanceof Error ? error.message : "Telefono actual invalido.");
-    }
-    try {
-      whatsappPhone = normalizeOptionalPhone(normalized.whatsapp_actual || "", "WhatsApp actual");
-    } catch (error) {
-      rowErrors.push(error instanceof Error ? error.message : "WhatsApp actual invalido.");
-    }
-    try {
-      personalEmail = normalizeOptionalEmail(normalized.correo_actual || "");
-    } catch (error) {
-      rowErrors.push(error instanceof Error ? error.message : "Correo actual invalido.");
-    }
-
     [
       duplicateInFile(documents, documentId, rowNumber, "Cedula"),
       duplicateInFile(employeeNumbers, employeeNumber, rowNumber, "Numero de empleado")
@@ -157,7 +119,7 @@ function parseRows(buffer: Buffer, lookupField: MemberLookupField) {
       return;
     }
 
-    parsed.push({ rowNumber, firstName, lastName, documentId, employeeNumber, personalPhone, whatsappPhone, personalEmail });
+    parsed.push({ rowNumber, firstName, lastName, documentId, employeeNumber });
   });
 
   return { rows: parsed, errors, processed: rows.length };
@@ -214,9 +176,6 @@ export async function POST(request: NextRequest) {
         lastName: row.lastName,
         documentId: row.documentId,
         employeeNumber: row.employeeNumber,
-        personalPhone: row.personalPhone,
-        whatsappPhone: row.whatsappPhone,
-        personalEmail: row.personalEmail,
         loadedById: user!.id
       }))
     });

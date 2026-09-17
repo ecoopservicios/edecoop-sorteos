@@ -48,11 +48,10 @@ export default async function DataUpdateAdminPage() {
         members={members.map((row) => ({
           id: row.id,
           companyName: row.enrollmentCompany.name,
-          name: `${row.firstName} ${row.lastName}`,
+          firstName: row.firstName,
+          lastName: row.lastName,
           documentId: row.documentId,
-          employeeNumber: row.employeeNumber,
-          personalPhone: row.personalPhone,
-          personalEmail: row.personalEmail
+          employeeNumber: row.employeeNumber
         }))}
         updates={updates.map((row) => ({
           id: row.id,

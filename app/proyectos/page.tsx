@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardPenLine, Gift, RefreshCw, Settings } from "lucide-react";
+import { ClipboardPenLine, Gift, RefreshCw } from "lucide-react";
 import { UserRole } from "@prisma/client";
 
 import { LogoutButton } from "@/components/logout-button";
@@ -31,7 +31,7 @@ export default async function ProjectsPage() {
           </p>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <Link
             href="/afiliacion"
             className="group flex min-h-[230px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
@@ -111,26 +111,6 @@ export default async function ProjectsPage() {
               <span className="mt-6 text-sm font-black text-slate-500">Acceso restringido</span>
             </div>
           )}
-
-          {isAdmin ? (
-            <Link
-              href="/configuracion"
-              className="group flex min-h-[230px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
-            >
-              <div>
-                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-800">
-                  <Settings size={26} />
-                </div>
-                <h2 className="text-2xl font-black text-slate-950">Configuracion</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Administra empresas, zonas, tipos de evento, contactos, usuarios y bitacora general.
-                </p>
-              </div>
-              <span className="mt-6 text-sm font-black text-emerald-800 group-hover:text-emerald-900">
-                Entrar a configuracion
-              </span>
-            </Link>
-          ) : null}
         </div>
       </section>
     </main>

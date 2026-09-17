@@ -40,6 +40,8 @@ const promoterItems = [
 const dataUpdateItems = [{ href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw }];
 const adminDataUpdateItems = [...dataUpdateItems, { href: "/configuracion", label: "Configuracion", icon: Settings }];
 
+const globalItems = [{ href: "/configuracion", label: "Configuracion", icon: Settings }];
+
 const raffleItems = [
   { href: "/sorteos", label: "Inicio Sorteos", icon: Trophy },
   { href: "/premios", label: "Otros Sorteos", icon: WalletCards },
@@ -66,7 +68,7 @@ export function AppShellClient({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const items =
     module === "global"
-      ? adminItems
+      ? globalItems
       : module === "data-update"
       ? user.role === "ADMIN"
         ? adminDataUpdateItems

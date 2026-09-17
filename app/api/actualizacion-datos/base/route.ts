@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { jsonError } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { normalizeDigits, normalizePersonalEmail, tenDigitContactPhone } from "@/lib/data-update";
+import { normalizeDigits } from "@/lib/data-update";
 import { validatePersonName } from "@/lib/participants";
 
 export async function POST(request: NextRequest) {
@@ -17,9 +17,6 @@ export async function POST(request: NextRequest) {
     const lastName = validatePersonName(String(payload.lastName || ""), "Apellidos");
     const documentId = normalizeDigits(String(payload.documentId || "")) || null;
     const employeeNumber = normalizeDigits(String(payload.employeeNumber || "")) || null;
-    const personalPhone = payload.personalPhone ? tenDigitContactPhone(String(payload.personalPhone), "Telefono personal") : null;
-    const whatsappPhone = payload.whatsappPhone ? tenDigitContactPhone(String(payload.whatsappPhone), "WhatsApp personal") : null;
-    const personalEmail = payload.personalEmail ? normalizePersonalEmail(String(payload.personalEmail)) : null;
 
     const company = await prisma.enrollmentCompany.findFirst({
       where: { id: enrollmentCompanyId, isActive: true, dataUpdateEnabled: true }
@@ -34,9 +31,6 @@ export async function POST(request: NextRequest) {
         lastName,
         documentId,
         employeeNumber,
-        personalPhone,
-        whatsappPhone,
-        personalEmail,
         loadedById: user.id
       }
     });
