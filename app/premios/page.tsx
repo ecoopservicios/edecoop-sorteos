@@ -19,7 +19,7 @@ export default async function EventsPage({
   if (user.role !== UserRole.ADMIN) redirect("/dashboard");
 
   const { tab } = await searchParams;
-  const activeTab = tab === "premios" || tab === "participantes" || tab === "historicos" || tab === "configuracion" || tab === "reset" ? tab : "eventos";
+  const activeTab = tab === "premios" || tab === "participantes" || tab === "historicos" || tab === "reset" ? tab : "eventos";
   await ensureBaseEventTypes();
 
   const [eventTypes, activeEvents, historicalEvents, submissions, manualParticipants, eventPrizeResults, zones] = await Promise.all([
@@ -197,7 +197,6 @@ export default async function EventsPage({
     { href: "/premios?tab=premios", label: "Premios", key: "premios" },
     { href: "/premios?tab=participantes", label: "Participantes", key: "participantes" },
     { href: "/premios?tab=historicos", label: "Eventos Históricos", key: "historicos" },
-    { href: "/premios?tab=configuracion", label: "Configuracion de eventos", key: "configuracion" },
     { href: "/premios?tab=reset", label: "Reset de eventos", key: "reset" }
   ];
 

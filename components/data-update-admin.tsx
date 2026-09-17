@@ -1,9 +1,8 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
-import { Building2, ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Upload, Users, X } from "lucide-react";
+import { ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Upload, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { EnrollmentCompanyManager } from "@/components/enrollment-company-manager";
 import { notify } from "@/lib/toast";
 import { ExportExcelButton } from "@/components/export-excel-button";
 
@@ -72,7 +71,6 @@ type UploadResult = {
 };
 
 export function DataUpdateAdmin({
-  formId,
   enrollmentCompanies,
   members,
   updates,
@@ -80,7 +78,6 @@ export function DataUpdateAdmin({
   texts,
   questions
 }: {
-  formId: string;
   enrollmentCompanies: EnrollmentCompanyRow[];
   members: MemberRow[];
   updates: UpdateRow[];
@@ -94,7 +91,7 @@ export function DataUpdateAdmin({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadCompanyId, setUploadCompanyId] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"link" | "texts" | "companies" | "members" | "updates">("link");
+  const [activeTab, setActiveTab] = useState<"link" | "texts" | "members" | "updates">("link");
   const [localQuestions, setLocalQuestions] = useState<DataUpdateQuestion[]>(questions);
   const configuredCompanies = enrollmentCompanies.filter((company) => company.dataUpdateEnabled && company.dataUpdateLookupField);
 
@@ -216,7 +213,6 @@ export function DataUpdateAdmin({
         {[
           { key: "link", label: "Link publico", icon: Link2 },
           { key: "texts", label: "Textos y pregunta", icon: TextCursorInput },
-          { key: "companies", label: "Empresas", icon: Building2 },
           { key: "members", label: "Base de socios", icon: Users },
           { key: "updates", label: "Solicitudes recibidas", icon: ClipboardList }
         ].map((tab) => {
@@ -450,8 +446,6 @@ export function DataUpdateAdmin({
           </div>
         </section>
       ) : null}
-
-      {activeTab === "companies" ? <EnrollmentCompanyManager formId={formId} companies={enrollmentCompanies} /> : null}
 
       {activeTab === "members" ? (
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

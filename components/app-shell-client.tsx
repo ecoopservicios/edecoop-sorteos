@@ -38,6 +38,7 @@ const promoterItems = [
 ];
 
 const dataUpdateItems = [{ href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw }];
+const adminDataUpdateItems = [...dataUpdateItems, { href: "/configuracion", label: "Configuracion", icon: Settings }];
 
 const raffleItems = [
   { href: "/sorteos", label: "Inicio Sorteos", icon: Trophy },
@@ -45,6 +46,7 @@ const raffleItems = [
   { href: "/historico?modulo=sorteos", label: "Premios Otorgados", icon: PackageCheck },
   { href: "/ganadores", label: "Ganadores", icon: Trophy }
 ];
+const adminRaffleItems = [...raffleItems, { href: "/configuracion", label: "Configuracion", icon: Settings }];
 
 function isActive(pathname: string, href: string) {
   const baseHref = href.split("?")[0];
@@ -57,13 +59,26 @@ export function AppShellClient({
   children
 }: {
   user: { name: string; role: ShellRole };
-  module?: "affiliation" | "raffles" | "data-update";
+  module?: "affiliation" | "raffles" | "data-update" | "global";
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const items = module === "data-update" ? dataUpdateItems : module === "raffles" ? raffleItems : user.role === "ADMIN" ? adminItems : promoterItems;
-  const appTitle = module === "data-update" ? "Actualizacion de datos" : module === "raffles" ? "Sorteos" : "Afiliacion";
+  const items =
+    module === "global"
+      ? adminItems
+      : module === "data-update"
+      ? user.role === "ADMIN"
+        ? adminDataUpdateItems
+        : dataUpdateItems
+      : module === "raffles"
+        ? user.role === "ADMIN"
+          ? adminRaffleItems
+          : raffleItems
+        : user.role === "ADMIN"
+          ? adminItems
+          : promoterItems;
+  const appTitle = module === "global" ? "Configuracion" : module === "data-update" ? "Actualizacion de datos" : module === "raffles" ? "Sorteos" : "Afiliacion";
 
   useEffect(() => {
     setMobileMenuOpen(false);

@@ -58,6 +58,8 @@ function channelLabel(channel: EnrollmentSubmissionChannel) {
 
   if (channel === "PRESENTIAL_FISICO") return "Formulario físico";
 
+  if (channel === "PRESENTIAL_PREMIO_SIN_FORMULARIO") return "Premio sin formulario";
+
   if (channel === "PRESENTIAL") return "Presencial";
 
   return "Virtual";
@@ -187,6 +189,8 @@ export function EnrollmentSubmissionsTable({ rows }: { rows: Row[] }) {
             <option value="VIRTUAL">Virtual</option>
 
             <option value="PRESENTIAL_FISICO">Formulario físico</option>
+
+            <option value="PRESENTIAL_PREMIO_SIN_FORMULARIO">Premio sin formulario</option>
 
             <option value="PRESENTIAL">Presencial anterior</option>
 

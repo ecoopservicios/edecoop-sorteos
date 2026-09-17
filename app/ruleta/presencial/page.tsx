@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { PresentialWheel } from "@/components/presential-wheel";
 import { canSpinPresential, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureEnrollmentForm } from "@/lib/enrollment-server";
 import { EVENT_TYPE_CODES } from "@/lib/events";
 
 const affiliationTypeCodes = [EVENT_TYPE_CODES.AFFILIATION_INSTANT, EVENT_TYPE_CODES.AFFILIATION_FINAL];
@@ -11,6 +12,7 @@ export default async function PresentialRafflePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canSpinPresential(user)) redirect("/login");
+  const form = await ensureEnrollmentForm(user.id);
   const now = new Date();
   const events = await prisma.eventEdition.findMany({
     where: {
@@ -42,6 +44,13 @@ export default async function PresentialRafflePage() {
           typeName: event.eventType.name,
           typeCode: event.eventType.code
         }))}
+        companies={form.companies
+          .filter((company) => company.isActive)
+          .map((company) => ({
+            id: company.id,
+            name: company.name,
+            lookupField: company.dataUpdateLookupField
+          }))}
       />
     </AppShell>
   );

@@ -264,6 +264,8 @@ function participantChannelLabel(channel: string) {
 
   if (channel === "PRESENTIAL_FISICO") return "Formulario físico";
 
+  if (channel === "PRESENTIAL_PREMIO_SIN_FORMULARIO") return "Premio sin formulario";
+
   if (channel === "PRESENTIAL") return "Presencial";
 
   if (channel === "VIRTUAL") return "Virtual";

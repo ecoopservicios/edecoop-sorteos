@@ -5,15 +5,13 @@ import { DataUpdateAdmin } from "@/components/data-update-admin";
 import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { ensureEnrollmentForm } from "@/lib/enrollment-server";
 
 export default async function DataUpdateAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== UserRole.ADMIN) redirect("/dashboard");
 
-  const [form, texts, questions, members, updates, enrollmentCompanies] = await Promise.all([
-    ensureEnrollmentForm(user.id),
+  const [texts, questions, members, updates, enrollmentCompanies] = await Promise.all([
     getDataUpdateTextSettings(),
     getDataUpdateQuestions(),
     prisma.memberDirectory.findMany({
@@ -34,10 +32,9 @@ export default async function DataUpdateAdminPage() {
     <AppShell user={user} module="data-update">
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-950">Actualizacion de Datos</h1>
-        <p className="text-slate-600">Configura empresas, base de socios y solicitudes recibidas.</p>
+        <p className="text-slate-600">Administra el link publico, textos, base de socios y solicitudes recibidas.</p>
       </div>
       <DataUpdateAdmin
-        formId={form.id}
         publicUrl={`${baseUrl}/actualizar-datos`}
         texts={texts}
         questions={questions}

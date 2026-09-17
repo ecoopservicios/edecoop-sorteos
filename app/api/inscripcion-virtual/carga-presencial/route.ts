@@ -35,6 +35,8 @@ type ParsedRow = {
   receivedPrize: boolean;
   prizeCode: string | null;
   raffleResultId: string | null;
+  eventEditionId: string | null;
+  temporarySubmissionId: string | null;
 };
 
 type BulkError = {
@@ -245,9 +247,25 @@ async function parseRows(text: string, formId: string) {
       });
       if (!company) rowErrors.push("Empresa no disponible en el formulario.");
 
-      let raffleResultId: string | null = null;
-      if (receivedPrize) {
-        const code = prizeCode!;
+      const temporarySubmission = await prisma.enrollmentSubmission.findFirst({
+        where: {
+          deletedAt: null,
+          channel: EnrollmentSubmissionChannel.PRESENTIAL_PREMIO_SIN_FORMULARIO,
+          companyName,
+          OR: [{ documentId }, { employeeNumber }]
+        },
+        select: { id: true, prizeCode: true, raffleResultId: true, eventEditionId: true }
+      });
+
+      let raffleResultId: string | null = temporarySubmission?.raffleResultId || null;
+      const eventEditionId: string | null = temporarySubmission?.eventEditionId || null;
+      const finalPrizeCode = prizeCode || temporarySubmission?.prizeCode || null;
+      const finalReceivedPrize = Boolean(finalPrizeCode);
+      if (temporarySubmission?.prizeCode && prizeCode && temporarySubmission.prizeCode !== prizeCode) {
+        rowErrors.push(`La persona ya tiene asociado el código de premio ${temporarySubmission.prizeCode}.`);
+      }
+      if (finalReceivedPrize) {
+        const code = finalPrizeCode!;
         const result = await prisma.raffleResult.findUnique({
           where: { code },
           select: { id: true, environment: true }
@@ -258,6 +276,7 @@ async function parseRows(text: string, formId: string) {
           if (result.environment !== RaffleEnvironment.PRESENTIAL) rowErrors.push(`El código ${code} no corresponde a un premio presencial.`);
           const linked = await prisma.enrollmentSubmission.findFirst({
             where: {
+              id: temporarySubmission?.id ? { not: temporarySubmission.id } : undefined,
               OR: [{ raffleResultId: result.id }, { prizeCode: code }]
             },
             select: { id: true }
@@ -280,7 +299,16 @@ async function parseRows(text: string, formId: string) {
       });
 
       if (firstName && lastName && documentId && employeeNumber && mobilePhone && email) {
-        const duplicate = await checkPersonDuplicate({ firstName, lastName, documentId, employeeNumber, phone: mobilePhone, email });
+        const duplicate = await checkPersonDuplicate({
+          firstName,
+          lastName,
+          documentId,
+          employeeNumber,
+          phone: mobilePhone,
+          email,
+          excludeEnrollmentSubmissionId: temporarySubmission?.id,
+          excludeRaffleResultId: temporarySubmission?.raffleResultId || undefined
+        });
         if (duplicate) rowErrors.push(duplicate.message);
       }
 
@@ -311,9 +339,11 @@ async function parseRows(text: string, formId: string) {
         bankAccountNumber: value("cta_banco_no") || null,
         bankName: value("nombre_banco") || null,
         salaryDeductionPercent: salaryDeductionPercent ?? 0,
-        receivedPrize,
-        prizeCode,
-        raffleResultId
+        receivedPrize: finalReceivedPrize,
+        prizeCode: finalPrizeCode,
+        raffleResultId,
+        eventEditionId,
+        temporarySubmissionId: temporarySubmission?.id || null
       });
     } catch (error) {
       errors.push({ row: rowNumber, message: participantErrorMessage(rowNumber, "", [error instanceof Error ? error.message : "Datos inválidos."]) });
@@ -381,12 +411,11 @@ export async function POST(request: NextRequest) {
           digitalParticipantId = participant.id;
           digitalLinkId = participant.links[0]?.id || null;
           if (digitalLinkId) linksCreated += 1;
-        } else {
+        } else if (row.receivedPrize) {
           prizesLinked += 1;
         }
 
-        const submission = await tx.enrollmentSubmission.create({
-          data: {
+        const submissionData = {
             formId: formConfig.id,
             firstName: row.firstName,
             lastName: row.lastName,
@@ -415,11 +444,18 @@ export async function POST(request: NextRequest) {
             receivedPrize: row.receivedPrize,
             prizeCode: row.prizeCode,
             raffleResultId: row.raffleResultId,
-            eventEditionId: instantEvent?.id || null,
+            eventEditionId: row.eventEditionId || instantEvent?.id || null,
             digitalParticipantId,
             digitalLinkId
-          }
-        });
+        };
+        const submission = row.temporarySubmissionId
+          ? await tx.enrollmentSubmission.update({
+              where: { id: row.temporarySubmissionId },
+              data: submissionData
+            })
+          : await tx.enrollmentSubmission.create({
+              data: submissionData
+            });
         submissions.push(submission);
       }
       return submissions;

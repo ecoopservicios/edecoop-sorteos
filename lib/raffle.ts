@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { DigitalLinkStatus, EventEdition, EventPrize, EventType, Prisma, Prize, RaffleEnvironment } from "@prisma/client";
+import { DigitalLinkStatus, EnrollmentSubmissionChannel, EventEdition, EventPrize, EventType, MemberLookupField, Prisma, Prize, RaffleEnvironment } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { formatParticipant, generatePrizeCode } from "@/lib/codes";
 import { EVENT_TYPE_CODES } from "@/lib/events";
@@ -35,6 +35,21 @@ function selectEventPrize(prizes: EventPrize[]) {
   }
 
   return prizes[0];
+}
+
+function onlyDigits(value?: string | null) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function validateLookupValue(field: MemberLookupField, value?: string | null) {
+  const clean = onlyDigits(value);
+  if (field === MemberLookupField.DOCUMENT_ID && clean.length !== 11) {
+    throw new Error("La cedula debe contener exactamente 11 numeros.");
+  }
+  if (field === MemberLookupField.EMPLOYEE_NUMBER && (!clean || clean.length > 5)) {
+    throw new Error("El numero de empleado debe contener maximo 5 numeros.");
+  }
+  return clean;
 }
 
 async function createUniquePrizeCode(tx: Prisma.TransactionClient) {
@@ -99,6 +114,9 @@ type PresentialParticipantInput = {
   nie?: string;
   email?: string;
   phone?: string;
+  companyName?: string;
+  lookupField?: MemberLookupField;
+  lookupValue?: string;
   playWithoutRegistration?: boolean;
   eventEditionId?: string;
 };
@@ -106,6 +124,62 @@ type PresentialParticipantInput = {
 export async function spinPresential(responsibleUserId: string, participant?: PresentialParticipantInput) {
   return prisma.$transaction(async (tx) => {
     const selectedEvent = participant?.eventEditionId ? await activeEventWithPrizes(tx, participant.eventEditionId) : null;
+    const requiresAffiliationIdentity = selectedEvent?.eventType.code === EVENT_TYPE_CODES.AFFILIATION_INSTANT;
+    let temporarySubmissionCompany:
+      | {
+          formId: string;
+          name: string;
+          dataUpdateLookupField: MemberLookupField | null;
+        }
+      | null = null;
+    let temporaryLookupField: MemberLookupField | null = null;
+    let temporaryLookupValue: string | null = null;
+
+    if (requiresAffiliationIdentity) {
+      const companyName = String(participant?.companyName || "").trim().toUpperCase();
+      if (!companyName) throw new Error("Debe seleccionar la empresa del participante.");
+
+      temporarySubmissionCompany = await tx.enrollmentCompany.findFirst({
+        where: { name: companyName, isActive: true },
+        select: { formId: true, name: true, dataUpdateLookupField: true }
+      });
+      if (!temporarySubmissionCompany) throw new Error("Empresa no disponible en el formulario.");
+      if (!temporarySubmissionCompany.dataUpdateLookupField) {
+        throw new Error("Esta empresa no tiene configurado el dato de identificacion para validar participantes.");
+      }
+      if (participant?.lookupField !== temporarySubmissionCompany.dataUpdateLookupField) {
+        throw new Error("El tipo de identificacion no coincide con la configuracion de la empresa.");
+      }
+
+      temporaryLookupField = temporarySubmissionCompany.dataUpdateLookupField;
+      temporaryLookupValue = validateLookupValue(temporaryLookupField, participant?.lookupValue);
+
+      const existingSubmission = await tx.enrollmentSubmission.findFirst({
+        where: {
+          deletedAt: null,
+          companyName: temporarySubmissionCompany.name,
+          eventEditionId: selectedEvent.id,
+          ...(temporaryLookupField === MemberLookupField.DOCUMENT_ID
+            ? { documentId: temporaryLookupValue }
+            : { employeeNumber: temporaryLookupValue })
+        },
+        select: { id: true, prizeCode: true, raffleResultId: true }
+      });
+      if (existingSubmission?.raffleResultId || existingSubmission?.prizeCode) {
+        throw new Error("Esta persona ya tiene un premio registrado en esta jornada.");
+      }
+      if (existingSubmission) throw new Error("Esta persona ya esta registrada en esta jornada.");
+
+      const existingResult = await tx.raffleResult.findFirst({
+        where: {
+          eventEditionId: selectedEvent.id,
+          participantNie: temporaryLookupValue
+        },
+        select: { id: true }
+      });
+      if (existingResult) throw new Error("Esta persona ya tiene un premio registrado en esta jornada.");
+    }
+
     const eventPrize = selectedEvent ? selectEventPrize(selectedEvent.prizes) : null;
     const globalPrize = eventPrize ? null : selectPrize(await availablePrizes(tx));
 
@@ -161,6 +235,7 @@ export async function spinPresential(responsibleUserId: string, participant?: Pr
     }
 
     const participantName = registeredName || formatParticipant(counter.value);
+    if (temporaryLookupValue) registeredNie = temporaryLookupValue;
     const code = await createUniquePrizeCode(tx);
 
     const result = await tx.raffleResult.create({
@@ -181,6 +256,42 @@ export async function spinPresential(responsibleUserId: string, participant?: Pr
         responsibleUser: true
       }
     });
+
+    if (requiresAffiliationIdentity && temporarySubmissionCompany && temporaryLookupField && temporaryLookupValue && selectedEvent) {
+      await tx.enrollmentSubmission.create({
+        data: {
+          formId: temporarySubmissionCompany.formId,
+          firstName: "PARTICIPANTE",
+          lastName: String(counter.value).padStart(6, "0"),
+          documentId: temporaryLookupField === MemberLookupField.DOCUMENT_ID ? temporaryLookupValue : "",
+          residencePhone: null,
+          mobilePhone: "0000000000",
+          address: "PENDIENTE",
+          city: "PENDIENTE",
+          maritalStatus: "SOLTERO",
+          spouseName: null,
+          profession: "No aplica",
+          birthDate: new Date("1900-01-01T00:00:00"),
+          position: "PENDIENTE",
+          companyName: temporarySubmissionCompany.name,
+          department: "PENDIENTE",
+          workPhone: null,
+          workplace: "PENDIENTE",
+          email: `pendiente-${result.id}@edecoop.local`,
+          monthlySalary: 0,
+          employeeNumber: temporaryLookupField === MemberLookupField.EMPLOYEE_NUMBER ? temporaryLookupValue : "",
+          bankAccountNumber: null,
+          bankName: null,
+          salaryDeductionPercent: 4,
+          acceptsTerms: true,
+          channel: EnrollmentSubmissionChannel.PRESENTIAL_PREMIO_SIN_FORMULARIO,
+          receivedPrize: true,
+          prizeCode: code,
+          raffleResultId: result.id,
+          eventEditionId: selectedEvent.id
+        }
+      });
+    }
 
     return result;
   });

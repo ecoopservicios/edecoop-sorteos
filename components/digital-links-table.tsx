@@ -62,6 +62,7 @@ type DigitalLinkRow = {
 
 function sourceLabel(channel: string) {
   if (channel === "PRESENTIAL_FISICO") return "Formulario fisico";
+  if (channel === "PRESENTIAL_PREMIO_SIN_FORMULARIO") return "Premio sin formulario";
   if (channel === "VIRTUAL") return "Afiliacion digital";
   if (channel === "PRESENTIAL") return "Presencial anterior";
   return "Sin origen";

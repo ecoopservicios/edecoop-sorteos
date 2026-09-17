@@ -58,8 +58,18 @@ export const presentialSpinSchema = z.object({
   nie: z.string().trim().optional(),
   email: z.union([z.string().email(), z.literal("")]).optional(),
   phone: z.string().trim().optional(),
+  companyName: z.string().trim().optional(),
+  lookupField: z.enum(["DOCUMENT_ID", "EMPLOYEE_NUMBER"]).optional(),
+  lookupValue: z.string().trim().optional(),
   playWithoutRegistration: z.boolean().optional(),
   eventEditionId: z.string().optional()
+});
+
+export const presentialParticipantLookupSchema = z.object({
+  eventEditionId: z.string().min(1),
+  companyName: z.string().trim().min(1),
+  lookupField: z.enum(["DOCUMENT_ID", "EMPLOYEE_NUMBER"]),
+  lookupValue: z.string().trim().min(1)
 });
 
 export const prizeStatusSchema = z.object({

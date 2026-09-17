@@ -154,6 +154,13 @@ export function DataUpdatePublicForm({
       return;
     }
     setDone(data.message);
+    setCompanyId("");
+    setLookupValue("");
+    setMember(null);
+    setNotFound(null);
+    setPersonalPhoneValue("");
+    setWhatsappPhoneValue("");
+    setWhatsappSameAsPhone(false);
     notify("Datos recibidos correctamente.", "success");
   }
 
@@ -175,10 +182,10 @@ export function DataUpdatePublicForm({
         <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">{texts.description}</p>
       </div>
 
-      <form onSubmit={search} className="mt-6 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+      <form onSubmit={search} autoComplete="off" className="mt-6 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
         <label>
           <span className="mb-1 block text-sm font-bold text-slate-700">Empresa</span>
-          <select value={companyId} onChange={(event) => { setCompanyId(event.target.value); setLookupValue(""); setMember(null); setNotFound(null); }} required className={inputClass}>
+          <select value={companyId} onChange={(event) => { setCompanyId(event.target.value); setLookupValue(""); setMember(null); setNotFound(null); setDone(""); }} required className={inputClass}>
             <option value="">Seleccione empresa</option>
             {companies.map((company) => (
               <option key={company.id} value={company.id}>{company.companyName}</option>
@@ -191,7 +198,15 @@ export function DataUpdatePublicForm({
               {selected.lookupField === "DOCUMENT_ID" ? "Digite su cedula" : "Digite su numero de empleado"}
             </span>
             <span className="mb-1 block min-h-[1rem] text-xs font-semibold text-slate-500">{texts.lookupQuestion}</span>
-            <input value={lookupValue} onChange={(event) => setLookupValue(event.target.value)} onInput={(event) => digitsOnly(event, selected.lookupField === "DOCUMENT_ID" ? 11 : 5)} required className={inputClass} />
+            <input
+              name="data-update-lookup"
+              value={lookupValue}
+              onChange={(event) => setLookupValue(event.target.value)}
+              onInput={(event) => digitsOnly(event, selected.lookupField === "DOCUMENT_ID" ? 11 : 5)}
+              required
+              autoComplete="off"
+              className={inputClass}
+            />
           </label>
         ) : null}
         <button disabled={loading || !selected} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-5 font-bold text-white hover:bg-emerald-800 disabled:opacity-60 sm:col-span-2 lg:col-span-1 lg:w-auto">
@@ -212,7 +227,7 @@ export function DataUpdatePublicForm({
       ) : null}
 
       {member ? (
-        <form onSubmit={submitUpdate} className="mt-6 grid gap-5">
+        <form onSubmit={submitUpdate} autoComplete="off" className="mt-6 grid gap-5">
           <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 sm:p-5">
             <p className="text-sm font-bold text-emerald-800">Datos encontrados</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
@@ -290,6 +305,7 @@ function QuestionSection({
               ) : (
                 <input
                   name={question.fieldKey}
+                  autoComplete="off"
                   required={question.required}
                   type={inputType(question.type)}
                   inputMode={question.type === "PHONE" || question.type === "NUMBER" ? "numeric" : question.type === "EMAIL" ? "email" : "text"}

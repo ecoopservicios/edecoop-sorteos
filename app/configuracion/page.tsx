@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Prisma, UserRole } from "@prisma/client";
 import { AppShell } from "@/components/app-shell";
 import { AuditFilters } from "@/components/audit-filters";
+import { EnrollmentCompanyManager } from "@/components/enrollment-company-manager";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { SettingsManager } from "@/components/settings-manager";
 import { UserForm } from "@/components/user-form";
@@ -10,6 +11,7 @@ import { UsersTable } from "@/components/users-table";
 import { getCooperativeSettings } from "@/lib/app-settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureEnrollmentForm } from "@/lib/enrollment-server";
 
 function actionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -70,7 +72,7 @@ export default async function SettingsPage({
   if (user.role !== UserRole.ADMIN) redirect("/dashboard");
 
   const { tab, desde, hasta, usuario, accion, modulo, q } = await searchParams;
-  const activeTab = tab === "usuarios" || tab === "bitacora" ? tab : "general";
+  const activeTab = tab === "empresas" || tab === "zonas" || tab === "tipos-evento" || tab === "usuarios" || tab === "bitacora" ? tab : "general";
   const createdAt =
     desde || hasta
       ? {
@@ -94,9 +96,12 @@ export default async function SettingsPage({
       : undefined
   };
 
-  const [settings, zones, users, logs] = await Promise.all([
+  const [form, settings, companies, zones, eventTypes, users, logs] = await Promise.all([
+    ensureEnrollmentForm(user.id),
     getCooperativeSettings(),
+    prisma.enrollmentCompany.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.eventZone.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
+    prisma.eventType.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -123,12 +128,15 @@ export default async function SettingsPage({
 
   const tabs = [
     { href: "/configuracion", label: "General", key: "general" },
+    { href: "/configuracion?tab=empresas", label: "Empresas", key: "empresas" },
+    { href: "/configuracion?tab=zonas", label: "Zonas", key: "zonas" },
+    { href: "/configuracion?tab=tipos-evento", label: "Tipos de evento", key: "tipos-evento" },
     { href: "/configuracion?tab=usuarios", label: "Usuarios", key: "usuarios" },
     { href: "/configuracion?tab=bitacora", label: "Bitacora", key: "bitacora" }
   ];
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} module="global">
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-950">Configuracion</h1>
         <p className="text-slate-600">Administra datos generales de EDECOOP y listas comunes usadas en la plataforma.</p>
@@ -146,7 +154,32 @@ export default async function SettingsPage({
           </Link>
         ))}
       </div>
-      {activeTab === "usuarios" ? (
+      {activeTab === "empresas" ? (
+        <EnrollmentCompanyManager
+          formId={form.id}
+          companies={companies.map((company) => ({
+            id: company.id,
+            name: company.name,
+            isActive: company.isActive,
+            dataUpdateEnabled: company.dataUpdateEnabled,
+            dataUpdateLookupField: company.dataUpdateLookupField
+          }))}
+        />
+      ) : activeTab === "zonas" ? (
+        <SettingsManager
+          settings={settings}
+          zones={zones.map((zone) => ({ id: zone.id, name: zone.name, isActive: zone.isActive }))}
+          eventTypes={eventTypes.map((type) => ({ id: type.id, name: type.name, code: type.code, isActive: type.isActive }))}
+          mode="zones"
+        />
+      ) : activeTab === "tipos-evento" ? (
+        <SettingsManager
+          settings={settings}
+          zones={zones.map((zone) => ({ id: zone.id, name: zone.name, isActive: zone.isActive }))}
+          eventTypes={eventTypes.map((type) => ({ id: type.id, name: type.name, code: type.code, isActive: type.isActive }))}
+          mode="event-types"
+        />
+      ) : activeTab === "usuarios" ? (
         <>
           <UserForm />
           <UsersTable
@@ -215,6 +248,7 @@ export default async function SettingsPage({
         <SettingsManager
           settings={settings}
           zones={zones.map((zone) => ({ id: zone.id, name: zone.name, isActive: zone.isActive }))}
+          eventTypes={eventTypes.map((type) => ({ id: type.id, name: type.name, code: type.code, isActive: type.isActive }))}
         />
       )}
     </AppShell>

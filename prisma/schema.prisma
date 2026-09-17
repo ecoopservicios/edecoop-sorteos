@@ -491,6 +491,7 @@ enum EnrollmentSubmissionChannel {
   PRESENTIAL
   PRESENTIAL_DIGITAL
   PRESENTIAL_FISICO
+  PRESENTIAL_PREMIO_SIN_FORMULARIO
 }
 
 enum EventEditionStatus {

@@ -17,6 +17,7 @@ type DuplicateInput = {
   email?: string | null;
   excludeDigitalParticipantId?: string;
   excludeEnrollmentSubmissionId?: string;
+  excludeRaffleResultId?: string;
 };
 
 export type DuplicateCheckResult = {
@@ -89,7 +90,10 @@ export async function checkPersonDuplicate(input: DuplicateInput, db: PrismaClie
     }
 
     const result = await db.raffleResult.findFirst({
-      where: { participantNie: candidate.value },
+      where: {
+        id: input.excludeRaffleResultId ? { not: input.excludeRaffleResultId } : undefined,
+        participantNie: candidate.value
+      },
       select: { id: true }
     });
     if (result) {
@@ -119,7 +123,10 @@ export async function checkPersonDuplicate(input: DuplicateInput, db: PrismaClie
     if (digital) return { field: "mobilePhone", message: "Ya existe un participante registrado con ese celular." };
 
     const result = await db.raffleResult.findFirst({
-      where: { participantPhone: phone },
+      where: {
+        id: input.excludeRaffleResultId ? { not: input.excludeRaffleResultId } : undefined,
+        participantPhone: phone
+      },
       select: { id: true }
     });
     if (result) return { field: "mobilePhone", message: "Ya existe un premio otorgado asociado a ese celular." };
@@ -147,7 +154,10 @@ export async function checkPersonDuplicate(input: DuplicateInput, db: PrismaClie
     if (digital) return { field: "email", message: "Ya existe un participante registrado con ese correo electrónico." };
 
     const result = await db.raffleResult.findFirst({
-      where: { participantEmail: email },
+      where: {
+        id: input.excludeRaffleResultId ? { not: input.excludeRaffleResultId } : undefined,
+        participantEmail: email
+      },
       select: { id: true }
     });
     if (result) return { field: "email", message: "Ya existe un premio otorgado asociado a ese correo electrónico." };
@@ -178,7 +188,10 @@ export async function checkPersonDuplicate(input: DuplicateInput, db: PrismaClie
     if (digital) return { field: "lastName", message: "Ya existe un participante registrado con ese nombre y apellido." };
 
     const result = await db.raffleResult.findFirst({
-      where: { participantName: fullName },
+      where: {
+        id: input.excludeRaffleResultId ? { not: input.excludeRaffleResultId } : undefined,
+        participantName: fullName
+      },
       select: { id: true }
     });
     if (result) return { field: "lastName", message: "Ya existe un premio otorgado asociado a ese nombre y apellido." };
