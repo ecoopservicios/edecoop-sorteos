@@ -55,7 +55,7 @@ async function main() {
     await page.getByLabel('Número de empleado', { exact: true }).fill(third.employeeNumber);
     await page.getByRole('button', { name: 'Buscar', exact: true }).click();
     await page.getByRole('dialog', { name: 'Confirmar entrega' }).waitFor();
-    await page.getByLabel('Retira otro empleado de EDESUR').check();
+    await page.getByLabel('Retira otro socio de EDESUR').check();
     assert(await page.getByRole('button', { name: 'Entregado', exact: true }).isDisabled());
     await page.getByLabel('Número de empleado de quien retira', { exact: true }).fill(number);
     await page.getByRole('button', { name: 'Validar empleado' }).click();
@@ -77,7 +77,7 @@ async function main() {
     await page.getByLabel('Número de empleado', { exact: true }).fill(fourth.employeeNumber);
     await page.getByRole('button', { name: 'Buscar', exact: true }).click();
     await page.getByRole('dialog', { name: 'Confirmar entrega' }).waitFor();
-    assert(!await page.getByLabel('Retira otro empleado de EDESUR').isChecked());
+    assert(!await page.getByLabel('Retira otro socio de EDESUR').isChecked());
     assert.equal(await page.getByLabel('Número de empleado de quien retira', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
     await page.goto(base + '/entrega-souvenir/estado');
@@ -89,7 +89,7 @@ async function main() {
     const exported = XLSX.utils.sheet_to_json(workbook.Sheets.Detalle);
     const exportedFirst = exported.find(row => row['Número de empleado'] === first.employeeNumber);
     assert.equal(exportedFirst['Empleado que retiró'], number);
-    assert.equal(exportedFirst['Retiró'], 'Otro empleado de EDESUR');
+    assert.equal(exportedFirst['Retiró'], 'Otro socio de EDESUR');
     const history = await (await api('/api/souvenir/listado?view=estado')).json();
     assert.equal(history.members.find(m => m.id === third.id).collectorEmployeeNumber, number);
     await db.souvenirMember.delete({ where: { id: first.id } });
