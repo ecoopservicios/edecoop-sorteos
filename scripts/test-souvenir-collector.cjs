@@ -81,7 +81,9 @@ async function main() {
     assert.equal(await page.getByLabel('Número de empleado de quien retira', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
     await page.goto(base + '/entrega-souvenir/estado');
-    await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
+    await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+    await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
+    await page.keyboard.press('Escape');
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Descargar Excel', exact: true }).click();
     const download = await downloadEvent;

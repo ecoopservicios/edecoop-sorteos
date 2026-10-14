@@ -314,7 +314,9 @@ async function main() {
   await page.screenshot({ path: 'outputs/souvenir-mobile-confirm.png', fullPage: true });
   await db.souvenirMember.createMany({ data: Array.from({ length: 12 }, (_, i) => ({ enrollmentCompanyId: company.id, firstName: `PAGINA PRUEBA ${stamp} ${i}`, lastName: 'TABLA', employeeNumber: `999999999900${i}`, office: 'OFICINA PRUEBA IMPRESION' })) });
   await page.goto(base + '/entrega-souvenir/imprimir');
-  await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
+  await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+  await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
+  await page.keyboard.press('Escape');
   await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('SIN UBICACIÓN ASIGNADA');
   assert.equal(await page.getByRole('table').count(), 1);
   assert.equal(await page.locator('table tbody tr').count(), 12);
@@ -352,7 +354,9 @@ async function main() {
   await page.emulateMedia({ media: 'screen' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base + '/entrega-souvenir/listado');
-  await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
+  await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+  await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
+  await page.keyboard.press('Escape');
   await page.getByLabel('Buscar socio', { exact: true }).fill('PAGINA PRUEBA');
   assert.equal(await page.getByRole('table').nth(1).locator('tbody tr:not([data-souvenir-group])').count(), 10);
   await page.getByRole('button', { name: 'Página siguiente', exact: true }).click();
@@ -392,7 +396,9 @@ async function main() {
   const activeAfterClear = await (await api('/api/souvenir/listado')).json();
   assert.equal(activeAfterClear.members.filter(m => m.companyId === company.id).length, 0);
   await page.goto(base + '/entrega-souvenir/estado');
-  await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
+  await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+  await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
+  await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('button', { name: 'Limpiar listado', exact: true }).count(), 0);
   await page.getByLabel('Estado', { exact: true }).selectOption('DELIVERED');
   assert((await page.getByRole('table').nth(1).innerText()).includes('Entregado'));

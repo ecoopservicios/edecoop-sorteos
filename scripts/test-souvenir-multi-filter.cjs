@@ -1,0 +1,94 @@
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+require('@next/env').loadEnvConfig(process.cwd());
+const { PrismaClient } = require('@prisma/client');
+const { chromium } = require('playwright');
+const { PDFDocument } = require('pdf-lib');
+const XLSX = require('xlsx');
+const db = new PrismaClient();
+const base = 'http://localhost:3002';
+const stamp = crypto.randomUUID();
+const companyIds = [];
+let user, browser;
+async function main() {
+  assert(['localhost', '127.0.0.1'].includes(new URL(process.env.DATABASE_URL).hostname));
+  try {
+    const form = await db.enrollmentForm.findFirst(); assert(form);
+    user = await db.user.create({ data: { name: 'Prueba filtros', email: `multi-${stamp}@example.invalid`, passwordHash: 'test-only', role: 'ADMIN' } });
+    const companies = [];
+    for (const suffix of ['A', 'B', 'C']) {
+      const company = await db.enrollmentCompany.create({ data: { formId: form.id, name: `FILTRO ${suffix} ${stamp}`, dataUpdateLookupField: 'EMPLOYEE_NUMBER' } });
+      companies.push(company); companyIds.push(company.id);
+    }
+    await db.souvenirMember.createMany({ data: [0, 1, 2, 3].map(i => ({ enrollmentCompanyId: companies[i < 2 ? 0 : i - 1].id, firstName: 'FILTRO ' + stamp, lastName: String(i), employeeNumber: '999' + Date.now() + i, approximateLocation: i < 2 ? 'UBICACION A' : i === 2 ? 'UBICACION B' : 'UBICACION C' })) });
+    const body = Buffer.from(JSON.stringify({ userId: user.id, expiresAt: Date.now() + 600000 })).toString('base64url');
+    const cookie = body + '.' + crypto.createHmac('sha256', process.env.AUTH_SECRET || 'edecoop-dev-secret-change-me').update(body).digest('base64url');
+    const headers = { cookie: 'edecoop_session=' + cookie };
+    browser = await chromium.launch({ channel: 'msedge', headless: true });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await context.addCookies([{ name: 'edecoop_session', value: cookie, url: base }]);
+    const page = await context.newPage();
+    async function select(ids) {
+      await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+      await page.getByLabel('Todas las empresas', { exact: true }).check();
+      for (const id of ids) await page.locator(`input[type="checkbox"][value="${id}"]`).check();
+      await page.keyboard.press('Escape');
+    }
+    await page.goto(base + '/entrega-souvenir/listado');
+    await page.getByRole('heading', { name: 'Detalle de socios (0)', exact: true }).waitFor({ state: 'hidden' });
+    const general = await page.getByRole('table').first().innerText();
+    await select([companies[0].id]);
+    await page.getByRole('heading', { name: 'Detalle de socios (2)', exact: true }).waitFor();
+    await select([companies[0].id, companies[1].id]);
+    await page.getByRole('heading', { name: 'Detalle de socios (3)', exact: true }).waitFor();
+    assert.equal(await page.getByRole('table').first().innerText(), general);
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Descargar Excel', exact: true }).click();
+    const workbook = XLSX.readFile(await (await downloadEvent).path());
+    const exported = XLSX.utils.sheet_to_json(workbook.Sheets.Detalle);
+    assert.equal(exported.length, 3);
+    assert.deepEqual([...new Set(exported.map(row => row.Empresa))].sort(), companies.slice(0, 2).map(c => c.name).sort());
+    await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('UBICACION B');
+    await page.getByRole('heading', { name: 'Detalle de socios (1)', exact: true }).waitFor();
+    await select([companies[0].id]);
+    assert.equal(await page.getByLabel('Ubicación aproximada', { exact: true }).inputValue(), '');
+    await select([]);
+    assert((await page.getByRole('button', { name: 'Empresa', exact: true }).innerText()).includes('Todas las empresas'));
+    await page.goto(base + '/entrega-souvenir/estado');
+    await select([companies[0].id, companies[1].id]);
+    await page.getByRole('heading', { name: 'Detalle de socios (3)', exact: true }).waitFor();
+    assert.equal(await page.getByRole('table').first().locator('tbody tr:not([data-souvenir-group])').count(), 2);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: 'outputs/souvenir-multi-mobile.png', fullPage: true });
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('button', { name: 'Empresa', exact: true }).getAttribute('aria-expanded'), 'false');
+    await page.goto(base + '/entrega-souvenir/imprimir');
+    await select([companies[0].id, companies[1].id]);
+    assert.equal(await page.getByRole('table').count(), 2);
+    const requestEvent = page.waitForRequest(request => request.url().includes('/api/souvenir/imprimir?'));
+    const pdfEvent = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Descargar PDF', exact: true }).click();
+    assert.deepEqual(new URL((await requestEvent).url()).searchParams.getAll('companyId'), companyIds.slice(0, 2));
+    const stream = await (await pdfEvent).createReadStream();
+    const chunks = []; for await (const chunk of stream) chunks.push(chunk);
+    assert.equal((await PDFDocument.load(Buffer.concat(chunks))).getPageCount(), 2);
+    const single = await fetch(base + '/api/souvenir/imprimir?companyId=' + companies[0].id, { headers });
+    assert.equal(single.status, 200);
+    assert.equal((await PDFDocument.load(await single.arrayBuffer())).getPageCount(), 1);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+    await page.screenshot({ path: 'outputs/souvenir-multi-desktop.png', fullPage: true });
+    await page.getByRole('heading', { name: 'Imprimir listado · Souvenir Aniversario' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Empresa', exact: true }).getAttribute('aria-expanded'), 'false');
+    console.log('PASS: one/multiple/all companies, unchanged general totals, location reset, filtered Excel and combined PDF, mobile/desktop and keyboard dismissal.');
+  } finally {
+    if (browser) await browser.close();
+    await db.souvenirMember.deleteMany({ where: { enrollmentCompanyId: { in: companyIds } } });
+    await db.enrollmentCompany.deleteMany({ where: { id: { in: companyIds } } });
+    if (user) await db.user.delete({ where: { id: user.id } });
+    await db.$disconnect();
+  }
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { compareSouvenirCompanies, compareSouvenirMembers, souvenirLocationKey, souvenirLocationLabel } from "@/lib/souvenir-order";
 import { notify } from "@/lib/toast";
 import { SouvenirTable } from "@/components/souvenir-table";
+import { CompanyMultiFilter } from "@/components/company-multi-filter";
 
 type Row = {
   id: string; listNumber: number | null; companyId: string; companyName: string; firstName: string; lastName: string; fullName: string;
@@ -35,7 +36,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [company, setCompany] = useState("");
+  const [company, setCompany] = useState<string[]>([]);
   const [location, setLocation] = useState("");
   const [search, setSearch] = useState("");
   const [state, setState] = useState("ALL");
@@ -56,8 +57,8 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   }, [view, refresh]);
   const companies = [...new Map(rows.map(row => [row.companyId, row.companyName])).entries()].sort((a, b) => compareSouvenirCompanies(a[1], b[1]));
   const query = key(search);
-  const locations = [...new Map(rows.filter(row => !company || row.companyId === company).map(row => [souvenirLocationKey(row.approximateLocation), souvenirLocationLabel(row.approximateLocation)])).entries()];
-  const filtered = rows.filter(row => (!company || row.companyId === company) && (!location || souvenirLocationKey(row.approximateLocation) === location) && (state === "ALL" || (state === "DELIVERED" ? !!row.deliveredAt : !row.deliveredAt)) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
+  const locations = [...new Map(rows.filter(row => !company.length || company.includes(row.companyId)).map(row => [souvenirLocationKey(row.approximateLocation), souvenirLocationLabel(row.approximateLocation)])).entries()];
+  const filtered = rows.filter(row => (!company.length || company.includes(row.companyId)) && (!location || souvenirLocationKey(row.approximateLocation) === location) && (state === "ALL" || (state === "DELIVERED" ? !!row.deliveredAt : !row.deliveredAt)) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
   const quantities = summary(view === "listado" ? rows : filtered);
   const total = quantities.reduce((sum, row) => sum + row.Total, 0);
   const delivered = quantities.reduce((sum, row) => sum + row.Entregados, 0);
@@ -77,7 +78,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       const result = await response.json().catch(() => null);
       if (!response.ok || !result) throw new Error(result?.error || "No se pudo limpiar el listado.");
       notify(`${result.count} socios retirados del listado. Estado de Entrega conservado.`, "success");
-      setClearing(false); setConfirmation(""); setReason(""); setCompany(""); setLocation(""); setRefresh(n => n + 1);
+      setClearing(false); setConfirmation(""); setReason(""); setCompany([]); setLocation(""); setRefresh(n => n + 1);
     } catch (e) { notify(e instanceof Error ? e.message : "No se pudo limpiar el listado.", "error"); }
     finally { setBusy(false); }
   }
@@ -87,7 +88,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
     <nav className="flex flex-wrap gap-2" aria-label="Secciones de souvenir"><Link href="/entrega-souvenir/listado" className={button} aria-current={view === "listado" ? "page" : undefined}>Consultar listado</Link><Link href="/entrega-souvenir/estado" className={button} aria-current={view === "estado" ? "page" : undefined}>Estado de Entrega</Link><Link href="/entrega-souvenir/imprimir" className={button}>Imprimir listado</Link>{isAdmin && <Link href="/entrega-souvenir/carga" className={button}>Cargar listado</Link>}</nav>
     {error && <p role="alert" className="text-red-700">{error}</p>}
     <section className="grid gap-3 border-y border-slate-200 py-4 md:grid-cols-2 xl:grid-cols-4">
-      <label className="text-sm font-semibold">Empresa<select aria-label="Empresa" className={input + " mt-1"} value={company} onChange={e => { setCompany(e.target.value); setLocation(""); }}><option value="">Todas las empresas</option>{companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <CompanyMultiFilter options={companies} value={company} onChange={value => { setCompany(value); setLocation(""); }} />
       <label className="text-sm font-semibold">Ubicación aproximada<select aria-label="Ubicación aproximada" className={input + " mt-1"} value={location} onChange={e => setLocation(e.target.value)}><option value="">Todas las ubicaciones</option>{locations.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="text-sm font-semibold">Buscar socio<div className="relative mt-1"><Search size={18} className="absolute left-3 top-3 text-slate-500" /><input className={input + " !pl-10"} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, empleado o cédula" /></div></label>
       <label className="text-sm font-semibold">Estado<select aria-label="Estado" className={input + " mt-1"} value={state} onChange={e => setState(e.target.value)}><option value="ALL">Todos</option><option value="PENDING">Pendientes</option><option value="DELIVERED">Entregados</option></select></label>

@@ -13,9 +13,9 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return jsonError("Inicie sesión nuevamente.", 401);
   try {
-    const companyId = request.nextUrl.searchParams.get("companyId") || "";
+    const companyIds = [...new Set(request.nextUrl.searchParams.getAll("companyId").filter(Boolean))];
     const location = request.nextUrl.searchParams.get("location") || "";
-    const records = await prisma.souvenirMember.findMany({ where: { clearedAt: null, ...(companyId ? { enrollmentCompanyId: companyId } : {}) }, include: { enrollmentCompany: { select: { name: true } } }, orderBy: { listNumber: "asc" } });
+    const records = await prisma.souvenirMember.findMany({ where: { clearedAt: null, ...(companyIds.length ? { enrollmentCompanyId: { in: companyIds } } : {}) }, include: { enrollmentCompany: { select: { name: true } } }, orderBy: { listNumber: "asc" } });
     const groups = new Map<string, { location: string; members: SouvenirPrintMember[] }>();
     for (const member of records) {
       const key = `${member.enrollmentCompanyId}:${souvenirLocationKey(member.approximateLocation)}`;
