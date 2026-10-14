@@ -342,6 +342,7 @@ async function main() {
   assert(numbered.every(m => Number.isInteger(m.listNumber) && m.listNumber > 0));
   await page.setViewportSize({ width: 1020, height: 740 });
   await page.emulateMedia({ media: 'print' });
+  assert(await page.getByRole('table').first().locator('tbody td:first-child').evaluateAll(cells => cells.every(cell => getComputedStyle(cell).whiteSpace === 'nowrap' && cell.scrollWidth <= cell.clientWidth + 1)));
   const printGeometry = await page.getByRole('table').first().evaluate(table => ({ width: table.getBoundingClientRect().width, height: table.closest('section').getBoundingClientRect().height, signatureHeight: table.querySelector('tbody td:last-child').getBoundingClientRect().height }));
   await page.screenshot({ path: 'outputs/souvenir-print-layout.png', fullPage: true });
   assert(printGeometry.height < 720, JSON.stringify(printGeometry));

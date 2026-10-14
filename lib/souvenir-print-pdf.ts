@@ -28,7 +28,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const [regular, bold] = await Promise.all(["Vera.ttf", "VeraBd.ttf"].map(name => readFile(path.join(process.cwd(), "public", "fonts", name))));
   const font = await pdf.embedFont(regular, { subset: true });
   const headingFont = await pdf.embedFont(bold, { subset: true });
-  const widths = [22, 112, 144, 86, 56, 60, 288];
+  const widths = [32, 108, 138, 86, 56, 60, 288];
   const labels = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Firma"];
   const size = 9, margin = 12, bottom = 8;
   type Cell = { lines: string[]; size: number };

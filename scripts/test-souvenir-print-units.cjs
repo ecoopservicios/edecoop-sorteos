@@ -55,7 +55,7 @@ async function main() {
   const merged = await PDFDocument.load(mergedBytes);
   assert.equal(merged.getPageCount(), 4);
   fs.writeFileSync('outputs/souvenir-combined-test.pdf', mergedBytes);
-  const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 1, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
+  const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 2100, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
   const compactPdf = await createSouvenirLocationPdf(compactRows[0].approximateLocation, compactRows);
   const compactDocument = await PDFDocument.load(compactPdf);
   assert.equal(compactDocument.getPageCount(), 4);
