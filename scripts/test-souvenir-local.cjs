@@ -365,7 +365,8 @@ async function main() {
   await page.getByLabel('Buscar socio', { exact: true }).fill('');
   const generalBefore = await page.getByRole('table').first().innerText();
   await page.getByLabel('Buscar socio', { exact: true }).fill('ANA');
-  assert.equal(await page.getByRole('table').first().innerText(), generalBefore);
+  assert.notEqual(await page.getByRole('table').first().innerText(), generalBefore);
+  assert.equal(await page.getByRole('table').first().locator('tbody tr:not([data-souvenir-group])').count(), 1);
   assert((await page.getByRole('table').nth(1).innerText()).includes('ANA PRUEBA'));
   await page.getByLabel('Buscar socio', { exact: true }).fill(literalRow['NO EMPLEADO']);
   assert((await page.getByRole('table').nth(1).innerText()).includes(literalRow['NO EMPLEADO']));

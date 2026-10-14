@@ -41,7 +41,8 @@ async function main() {
     await page.getByRole('heading', { name: 'Detalle de socios (2)', exact: true }).waitFor();
     await select([companies[0].id, companies[1].id]);
     await page.getByRole('heading', { name: 'Detalle de socios (3)', exact: true }).waitFor();
-    assert.equal(await page.getByRole('table').first().innerText(), general);
+    assert.notEqual(await page.getByRole('table').first().innerText(), general);
+    assert.equal(await page.getByRole('table').first().locator('tbody tr:not([data-souvenir-group])').count(), 2);
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Descargar Excel', exact: true }).click();
     const workbook = XLSX.readFile(await (await downloadEvent).path());
@@ -50,6 +51,16 @@ async function main() {
     assert.deepEqual([...new Set(exported.map(row => row.Empresa))].sort(), companies.slice(0, 2).map(c => c.name).sort());
     await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('UBICACION B');
     await page.getByRole('heading', { name: 'Detalle de socios (1)', exact: true }).waitFor();
+    assert.equal(await page.getByRole('table').first().locator('tbody tr:not([data-souvenir-group])').count(), 1);
+    assert((await page.getByRole('table').first().innerText()).includes(companies[1].name));
+    await page.getByLabel('Estado', { exact: true }).selectOption('DELIVERED');
+    await page.getByRole('heading', { name: 'Detalle de socios (0)', exact: true }).waitFor();
+    assert.equal(await page.getByRole('table').first().locator('tbody tr:not([data-souvenir-group])').filter({ hasText: companies[1].name }).count(), 0);
+    await page.getByLabel('Estado', { exact: true }).selectOption('ALL');
+    await page.getByLabel('Buscar socio', { exact: true }).fill('NO EXISTE ' + stamp);
+    await page.getByRole('heading', { name: 'Detalle de socios (0)', exact: true }).waitFor();
+    assert((await page.getByRole('table').first().innerText()).includes('Sin registros.'));
+    await page.getByLabel('Buscar socio', { exact: true }).fill('');
     await select([companies[0].id]);
     assert.equal(await page.getByLabel('Ubicación aproximada', { exact: true }).inputValue(), '');
     await select([]);
@@ -82,7 +93,7 @@ async function main() {
     await page.screenshot({ path: 'outputs/souvenir-multi-desktop.png', fullPage: true });
     await page.getByRole('heading', { name: 'Imprimir listado · Souvenir Aniversario' }).click();
     assert.equal(await page.getByRole('button', { name: 'Empresa', exact: true }).getAttribute('aria-expanded'), 'false');
-    console.log('PASS: one/multiple/all companies, unchanged general totals, location reset, filtered Excel and combined PDF, mobile/desktop and keyboard dismissal.');
+    console.log('PASS: one/multiple/all companies, all summary tables follow every filter, location reset, filtered Excel and combined PDF, mobile/desktop and keyboard dismissal.');
   } finally {
     if (browser) await browser.close();
     await db.souvenirMember.deleteMany({ where: { enrollmentCompanyId: { in: companyIds } } });

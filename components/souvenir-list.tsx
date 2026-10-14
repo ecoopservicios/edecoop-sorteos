@@ -59,7 +59,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const query = key(search);
   const locations = [...new Map(rows.filter(row => !company.length || company.includes(row.companyId)).map(row => [souvenirLocationKey(row.approximateLocation), souvenirLocationLabel(row.approximateLocation)])).entries()];
   const filtered = rows.filter(row => (!company.length || company.includes(row.companyId)) && (!location || souvenirLocationKey(row.approximateLocation) === location) && (state === "ALL" || (state === "DELIVERED" ? !!row.deliveredAt : !row.deliveredAt)) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
-  const quantities = summary(view === "listado" ? rows : filtered);
+  const quantities = summary(filtered);
   const total = quantities.reduce((sum, row) => sum + row.Total, 0);
   const delivered = quantities.reduce((sum, row) => sum + row.Entregados, 0);
 
@@ -93,7 +93,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       <label className="text-sm font-semibold">Buscar socio<div className="relative mt-1"><Search size={18} className="absolute left-3 top-3 text-slate-500" /><input className={input + " !pl-10"} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, empleado o cédula" /></div></label>
       <label className="text-sm font-semibold">Estado<select aria-label="Estado" className={input + " mt-1"} value={state} onChange={e => setState(e.target.value)}><option value="ALL">Todos</option><option value="PENDING">Pendientes</option><option value="DELIVERED">Entregados</option></select></label>
     </section>
-    <section><h2 className="mb-3 text-lg font-bold">{view === "listado" ? "Cantidades generales por empresa" : "Entregas por empresa"}</h2>
+    <section><h2 className="mb-3 text-lg font-bold">{view === "listado" ? "Cantidades por empresa" : "Entregas por empresa"}</h2>
       <dl className="mb-4 grid grid-cols-3 gap-3">{[["Socios", total], ["Pendientes", total - delivered], ["Entregados", delivered]].map(([label, value]) => <div key={label} className="border-b-2 border-slate-200 pb-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 text-2xl font-bold">{loading ? "..." : value}</dd></div>)}</dl>
       <SouvenirTable headers={["Empresa", "Total", "Pendientes", "Entregados", "% de entrega"]} rows={quantities.map(row => ({ id: row.Empresa, cells: [row.Empresa, row.Total, <span key="pending" className="text-amber-700">{row.Pendientes}</span>, <span key="delivered" className="text-emerald-700">{row.Entregados}</span>, `${row["Entrega %"]}%`] }))} empty={loading ? "Cargando..." : "Sin registros."} />
     </section>
