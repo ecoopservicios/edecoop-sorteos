@@ -22,7 +22,7 @@ async function main() {
   companyIds.push(otherCompany.id);
   await db.memberDirectory.create({ data: { enrollmentCompanyId: company.id, firstName: 'BASE', lastName: 'INDEPENDIENTE', employeeNumber: '77777' } });
   const sharedCount = await db.memberDirectory.count();
-  const member = await db.souvenirMember.create({ data: { enrollmentCompanyId: company.id, firstName: 'ANA', lastName: 'PRUEBA', employeeNumber: '99991', office: 'OFICINA INICIAL', organizationalDirection: 'DIRECCION COMERCIAL', physicalListPage: 3 } });
+  const member = await db.souvenirMember.create({ data: { enrollmentCompanyId: company.id, firstName: 'ANA', lastName: 'PRUEBA', employeeNumber: '99991', office: 'OFICINA INICIAL', approximateLocation: 'UBICACION ORIGINAL', organizationalDirection: 'DIRECCION COMERCIAL', physicalListPage: 3 } });
   const documentMember = await db.souvenirMember.create({ data: { enrollmentCompanyId: otherCompany.id, firstName: 'PEDRO', lastName: 'PRUEBA', documentId: '00199999991' } });
   const body = Buffer.from(JSON.stringify({ userId: user.id, expiresAt: Date.now() + 600000 })).toString('base64url');
   const signature = crypto.createHmac('sha256', process.env.AUTH_SECRET || 'edecoop-dev-secret-change-me').update(body).digest('base64url');
@@ -91,7 +91,7 @@ async function main() {
     data.set('action', 'apply'); data.set('fileHash', result.fileHash);
     return fetch(base + '/api/souvenir/carga', { method: 'POST', headers: { cookie: headers.cookie }, body: data });
   }
-  const row = { EMPRESA: company.name, NOMBRES: 'ANA', APELLIDOS: 'PRUEBA', 'CEDULA CONSULTA': '', 'CEDULA MOSTRAR': '***-*******-*', 'NO EMPLEADO': '99991', SEXO: 'F', OFICINA: 'OFICINA CENTRAL', UNIDAD: 'COMERCIAL' };
+  const row = { EMPRESA: company.name, NOMBRES: 'ANA', APELLIDOS: 'PRUEBA', 'CEDULA CONSULTA': '', 'CEDULA MOSTRAR': '***-*******-*', 'NO EMPLEADO': '99991', SEXO: 'F', OFICINA: 'OFICINA CENTRAL', UNIDAD: 'COMERCIAL', 'UBICACION APROXIMADA': 'Segundo piso, junto a recepción' };
   async function analyzeCompanies(rows, mappings = {}, applyHash = null) {
     const data = new FormData(); data.set('file', new Blob([spreadsheet(rows)]), 'socios.xlsx');
     data.set('companyMappings', JSON.stringify(mappings));
@@ -139,6 +139,12 @@ async function main() {
   assert.equal((await upload([{ ...row, EMPRESA: otherCompany.name, NOMBRES: 'DISTINTO', 'CEDULA CONSULTA': '00299999991' }])).status, 409);
   assert.equal((await upload([row])).status, 200);
   assert.equal((await db.souvenirMember.findUnique({ where: { id: member.id } })).office, 'OFICINA CENTRAL');
+  assert.equal((await db.souvenirMember.findUnique({ where: { id: member.id } })).approximateLocation, row['UBICACION APROXIMADA']);
+  const { ['UBICACION APROXIMADA']: ignoredLocation, ...legacyRow } = row;
+  assert.equal((await upload([legacyRow])).status, 200);
+  assert.equal((await db.souvenirMember.findUnique({ where: { id: member.id } })).approximateLocation, row['UBICACION APROXIMADA']);
+  assert.equal((await upload([{ ...row, 'UBICACION APROXIMADA': 'X'.repeat(501) }])).status, 422);
+  assert.equal((await db.souvenirDelivery.findUnique({ where: { souvenirMemberId: member.id } })).approximateLocation, 'UBICACION ORIGINAL');
   assert.equal((await db.souvenirDelivery.findUnique({ where: { souvenirMemberId: member.id } })).physicalListPage, 3);
   assert.equal((await db.souvenirDelivery.findUnique({ where: { souvenirMemberId: member.id } })).office, 'OFICINA INICIAL');
   const newRow = { ...row, NOMBRES: 'LUISA', 'NO EMPLEADO': '99992' };
@@ -216,7 +222,7 @@ async function main() {
   const templateChunks = [];
   for await (const chunk of templateStream) templateChunks.push(chunk);
   const templateBook = XLSX.read(Buffer.concat(templateChunks), { type: 'buffer' });
-  assert.deepEqual(XLSX.utils.sheet_to_json(templateBook.Sheets.Socios, { header: 1 })[0], ['NOMBRES', 'APELLIDOS', 'CEDULA CONSULTA', 'CEDULA MOSTRAR', 'NO EMPLEADO', 'EMPRESA', 'SEXO', 'OFICINA', 'UNIDAD']);
+  assert.deepEqual(XLSX.utils.sheet_to_json(templateBook.Sheets.Socios, { header: 1 })[0], ['NOMBRES', 'APELLIDOS', 'CEDULA CONSULTA', 'CEDULA MOSTRAR', 'NO EMPLEADO', 'EMPRESA', 'SEXO', 'OFICINA', 'UNIDAD', 'UBICACION APROXIMADA']);
   await page.getByLabel('Archivo Excel').setInputFiles({ name: 'empresas-revision.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: spreadsheet([typoRow]) });
   await page.getByRole('button', { name: 'Analizar archivo', exact: true }).click();
   await page.getByRole('heading', { name: 'Revisar empresas del archivo' }).waitFor();
@@ -285,6 +291,7 @@ async function main() {
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   await page.getByRole('dialog', { name: 'Confirmar entrega' }).waitFor();
   assert(await page.getByRole('dialog').getByText('OFICINA CENTRAL', { exact: true }).isVisible());
+  assert(await page.getByRole('dialog').getByText(row['UBICACION APROXIMADA'], { exact: true }).isVisible());
   assert(await page.getByRole('dialog').getByText('***-*******-*', { exact: true }).isVisible());
   await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
   assert.equal(await db.souvenirDelivery.count({ where: { souvenirMember: { employeeNumber: '99992', enrollmentCompanyId: company.id } } }), 0);
@@ -365,6 +372,7 @@ async function main() {
   const listBook = XLSX.read(Buffer.concat(listChunks), { type: 'buffer' });
   assert.deepEqual(listBook.SheetNames, ['Resumen por empresa', 'Detalle']);
   assert.equal(XLSX.utils.sheet_to_json(listBook.Sheets.Detalle).length, 1);
+  assert.equal(XLSX.utils.sheet_to_json(listBook.Sheets.Detalle)[0]['Ubicación aproximada'], row['UBICACION APROXIMADA']);
   const deliveriesBeforeClear = await db.souvenirDelivery.findMany({ where: { deliveredById: user.id }, orderBy: { id: 'asc' } });
   const listBeforeClear = await db.souvenirMember.count({ where: { enrollmentCompanyId: company.id } });
   assert.equal((await api('/api/souvenir/listado', { method: 'DELETE', body: JSON.stringify({ confirmation: 'WRONG', reason: 'Prueba', companyId: company.id }) })).status, 422);

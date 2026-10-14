@@ -1,6 +1,6 @@
 export const SOUVENIR_HEADERS = [
   "NOMBRES", "APELLIDOS", "CEDULA CONSULTA", "CEDULA MOSTRAR",
-  "NO EMPLEADO", "EMPRESA", "SEXO", "OFICINA", "UNIDAD"
+  "NO EMPLEADO", "EMPRESA", "SEXO", "OFICINA", "UNIDAD", "UBICACION APROXIMADA"
 ];
 
 export function normalizeSouvenirHeader(value: string) {

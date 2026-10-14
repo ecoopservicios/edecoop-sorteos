@@ -21,10 +21,11 @@ export async function GET(request: NextRequest) {
     sex: history && m.souvenirDelivery ? m.souvenirDelivery.sex : m.sex,
     office: history && m.souvenirDelivery ? m.souvenirDelivery.office : m.office,
     unit: history && m.souvenirDelivery ? m.souvenirDelivery.unit : m.unit,
+    approximateLocation: history && m.souvenirDelivery ? m.souvenirDelivery.approximateLocation : m.approximateLocation,
     organizationalDirection: m.souvenirDelivery?.organizationalDirection ?? m.organizationalDirection,
     physicalListPage: m.souvenirDelivery?.physicalListPage ?? m.physicalListPage,
     clearedAt: null, deliveredAt: m.souvenirDelivery?.deliveredAt ?? null, responsible: m.souvenirDelivery?.deliveredBy.name ?? null
-  })), ...retained.map(d => ({ id: d.id, listNumber: d.listNumber, companyId: d.companyId || d.companyName, companyName: d.companyName, firstName: d.firstName || d.memberName, lastName: d.lastName || "", fullName: d.memberName, documentId: d.documentId, displayDocumentId: d.displayDocumentId, employeeNumber: d.employeeNumber, sex: d.sex, office: d.office, unit: d.unit, organizationalDirection: d.organizationalDirection, physicalListPage: d.physicalListPage, clearedAt: null, deliveredAt: d.deliveredAt, responsible: d.deliveredBy.name }))] });
+  })), ...retained.map(d => ({ id: d.id, listNumber: d.listNumber, companyId: d.companyId || d.companyName, companyName: d.companyName, firstName: d.firstName || d.memberName, lastName: d.lastName || "", fullName: d.memberName, documentId: d.documentId, displayDocumentId: d.displayDocumentId, employeeNumber: d.employeeNumber, sex: d.sex, office: d.office, unit: d.unit, approximateLocation: d.approximateLocation, organizationalDirection: d.organizationalDirection, physicalListPage: d.physicalListPage, clearedAt: null, deliveredAt: d.deliveredAt, responsible: d.deliveredBy.name }))] });
 }
 
 export async function DELETE(request: NextRequest) {

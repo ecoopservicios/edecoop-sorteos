@@ -23,7 +23,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user || user.role !== "ADMIN" || user.mustChangePassword) return jsonError("No autorizado.", 403);
   const members = await prisma.souvenirMember.findMany({ where: { clearedAt: null }, include: { enrollmentCompany: { select: { name: true, dataUpdateLookupField: true } } } });
-  return NextResponse.json({ members: members.sort((a, b) => a.listNumber - b.listNumber).map(m => ({ id: m.id, listNumber: m.listNumber, firstName: m.firstName, lastName: m.lastName, office: m.office, companyName: m.enrollmentCompany.name })), report: buildSouvenirReport(members.map(member => ({ ...member, companyName: member.enrollmentCompany.name, lookupField: member.enrollmentCompany.dataUpdateLookupField, rowLabel: "Socio registrado" }))) });
+  return NextResponse.json({ members: members.sort((a, b) => a.listNumber - b.listNumber).map(m => ({ id: m.id, listNumber: m.listNumber, firstName: m.firstName, lastName: m.lastName, office: m.office, approximateLocation: m.approximateLocation, companyName: m.enrollmentCompany.name })), report: buildSouvenirReport(members.map(member => ({ ...member, companyName: member.enrollmentCompany.name, lookupField: member.enrollmentCompany.dataUpdateLookupField, rowLabel: "Socio registrado" }))) });
 }
 
 export async function POST(request: NextRequest) {
@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
       return { firstName: values.nombres || "", lastName: values.apellidos || "", documentId: values.cedula_consulta || null, employeeNumber: values.no_empleado || null, companyName: company?.name || values.empresa || "Sin empresa", lookupField: company?.dataUpdateLookupField || null, rowLabel: `Fila ${index + 2}` };
     }));
     const errors: string[] = [...report.issues];
-    const rows: { enrollmentCompanyId: string; firstName: string; lastName: string; documentId: string | null; displayDocumentId: string | null; employeeNumber: string | null; sex: string | null; office: string | null; unit: string | null; row: number }[] = [];
+    const rows: { enrollmentCompanyId: string; firstName: string; lastName: string; documentId: string | null; displayDocumentId: string | null; employeeNumber: string | null; sex: string | null; office: string | null; unit: string | null; approximateLocation?: string | null; row: number }[] = [];
     const keys = Object.keys(rawRows[0]).map(normalizeSouvenirHeader);
-    const requiredHeaders = SOUVENIR_HEADERS.map(normalizeSouvenirHeader);
+    const requiredHeaders = SOUVENIR_HEADERS.filter(header => header !== "UBICACION APROXIMADA").map(normalizeSouvenirHeader);
     const missing = requiredHeaders.filter(k => !keys.includes(k));
     if (missing.length) return NextResponse.json({ error: `Faltan columnas: ${missing.join(", ")}.`, report }, { status: 422 });
     for (const [index, raw] of rawRows.entries()) {
@@ -86,8 +86,9 @@ export async function POST(request: NextRequest) {
       if (values.sexo.length > 30) issues.push("SEXO admite hasta 30 caracteres.");
       if (values.oficina.length > 200) issues.push("OFICINA admite hasta 200 caracteres.");
       if (values.unidad.length > 200) issues.push("UNIDAD admite hasta 200 caracteres.");
+      if ((values.ubicacion_aproximada || "").length > 500) issues.push("UBICACION APROXIMADA admite hasta 500 caracteres.");
       if (issues.length) errors.push(`Fila ${row} · ${values.nombres} ${values.apellidos}: ${issues.join(" ")}`);
-      rows.push({ enrollmentCompanyId: company.id, firstName, lastName, documentId, displayDocumentId, employeeNumber, sex: values.sexo || null, office: values.oficina || null, unit: values.unidad || null, row });
+      rows.push({ enrollmentCompanyId: company.id, firstName, lastName, documentId, displayDocumentId, employeeNumber, sex: values.sexo || null, office: values.oficina || null, unit: values.unidad || null, ...("ubicacion_aproximada" in values ? { approximateLocation: values.ubicacion_aproximada || null } : {}), row });
     }
     const inputHasErrors = errors.length > 0;
     const existing = await prisma.souvenirMember.findMany({ select: { id: true, enrollmentCompanyId: true, firstName: true, lastName: true, documentId: true, employeeNumber: true } });

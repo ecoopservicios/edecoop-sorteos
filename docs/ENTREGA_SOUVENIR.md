@@ -4,6 +4,8 @@ Proyecto local independiente de los sorteos, afiliaciones y actualización de da
 
 El cotejo `dataUpdateEnabled` solo habilita Actualización de Datos. Desmarcarlo no borra `dataUpdateLookupField` ni oculta la empresa en otros proyectos. El dato de consulta es una configuración global independiente; las empresas deben conservar estado activo y una identificación configurada para consultar el listado de souvenirs.
 
+La plantilla añade como última columna `UBICACION APROXIMADA` (texto opcional de hasta 500 caracteres). Se guarda en `approximateLocation`, se muestra en la búsqueda, carga/listados y Excel, y queda como snapshot al entregar. Los archivos antiguos sin esta columna siguen funcionando y no borran una ubicación ya registrada; una celda vacía en la nueva columna sí permite limpiarla. No cambia la numeración, agrupación ni columnas del PDF para firmas.
+
 ## Flujo
 
 1. Al entrar se muestran dos opciones: **Cargar listado de socios** y **Entregar Souvenir**. La primera abre carga y plantilla, sin seleccionar empresa. El Excel incluye empresa en cada fila y puede contener varias empresas.

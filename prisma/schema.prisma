@@ -421,6 +421,7 @@ model MemberDirectory {
 }
 
 model SouvenirMember {
+  approximateLocation String?
   clearedAt DateTime?
   id String @id @default(cuid())
   listNumber Int @unique @default(autoincrement())
@@ -450,6 +451,7 @@ model SouvenirMember {
 }
 
 model SouvenirDelivery {
+  approximateLocation String?
   id String @id @default(cuid())
   listNumber Int?
   souvenirMemberId String? @unique

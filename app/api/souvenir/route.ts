@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       const value = company.dataUpdateLookupField === "DOCUMENT_ID" ? normalizeLookupValue(lookup, company.dataUpdateLookupField) : lookup;
       const member = await prisma.souvenirMember.findFirst({
         where: { clearedAt: null, enrollmentCompanyId: companyId, ...(company.dataUpdateLookupField === "DOCUMENT_ID" ? { documentId: value } : { employeeNumber: value }) },
-        select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } }
+        select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } }
       });
       if (!member) return jsonError("No se encontró el socio en el listado de esta empresa.", 404);
       return NextResponse.json({ member });
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
   const members = await prisma.souvenirMember.findMany({
     where: { enrollmentCompanyId: companyId, clearedAt: null },
-    select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } },
+    select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } },
     orderBy: { listNumber: "asc" }
   });
   const delivered = members.filter(member => member.souvenirDelivery).length;
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         companyId: member.enrollmentCompanyId, firstName: member.firstName, lastName: member.lastName,
         memberName: `${member.firstName} ${member.lastName}`, companyName: member.enrollmentCompany.name,
         documentId: member.documentId, employeeNumber: member.employeeNumber,
-        displayDocumentId: member.displayDocumentId, sex: member.sex, office: member.office, unit: member.unit,
+        displayDocumentId: member.displayDocumentId, sex: member.sex, office: member.office, unit: member.unit, approximateLocation: member.approximateLocation,
         organizationalDirection: member.organizationalDirection, physicalListPage: member.physicalListPage
       } });
       await tx.auditLog.create({ data: { action: "SOUVENIR_DELIVERED", entityType: "SouvenirDelivery", entityId: record.id, userId: user.id, reason: "Entrega de souvenir confirmada", metadata: { memberId: member.id, companyId, memberName: record.memberName } } });
