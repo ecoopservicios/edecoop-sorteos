@@ -17,7 +17,7 @@ type Member = {
   id: string; listNumber: number; firstName: string; lastName: string; displayDocumentId: string | null; employeeNumber: string | null;
   sex: string | null; office: string | null; unit: string | null; approximateLocation: string | null;
   organizationalDirection: string | null; physicalListPage: number | null;
-  souvenirDelivery: { deliveredAt: string; deliveredBy: { name: string } } | null;
+  souvenirDelivery: { deliveredAt: string; deliveredBy: { name: string }; collectedByOther: boolean; collectorEmployeeNumber: string | null; collectorName: string | null } | null;
 };
 const field = "h-12 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50";
@@ -55,6 +55,12 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
   const [searchModal, setSearchModal] = useState(false);
   const [lookup, setLookup] = useState("");
   const [member, setMember] = useState<Member | null>(null);
+  const [collectedByOther, setCollectedByOther] = useState(false);
+  const [collectorNumber, setCollectorNumber] = useState("");
+  const [collector, setCollector] = useState<{ id: string; firstName: string; lastName: string; employeeNumber: string } | null>(null);
+  const [collectorError, setCollectorError] = useState("");
+  const [validatingCollector, setValidatingCollector] = useState(false);
+  const collectorRequest = useRef(0);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -113,9 +119,26 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
   }, [companyId, refresh, deliveryMode]);
 
   function resetSearch() {
+    resetCollector();
     setMember(null); setLookup(""); setError("");
     setSearchModal(true);
     requestAnimationFrame(() => searchRef.current?.focus());
+  }
+
+  function resetCollector() {
+    collectorRequest.current++;
+    setCollectedByOther(false); setCollectorNumber(""); setCollector(null); setCollectorError(""); setValidatingCollector(false);
+  }
+
+  async function validateCollector(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault(); if (!member || validatingCollector) return;
+    const version = ++collectorRequest.current;
+    setValidatingCollector(true); setCollector(null); setCollectorError("");
+    try {
+      const data = await readResponse(await fetch(`/api/souvenir/retira?${new URLSearchParams({ memberId: member.id, employeeNumber: collectorNumber })}`, { cache: "no-store" }));
+      if (version === collectorRequest.current) setCollector(data.collector);
+    } catch (err) { if (version === collectorRequest.current) setCollectorError(err instanceof Error ? err.message : "No se pudo validar a quien retira."); }
+    finally { if (version === collectorRequest.current) setValidatingCollector(false); }
   }
 
   function openCompanySelection() {
@@ -131,16 +154,16 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
     setSearching(true); setError("");
     try {
       const data = await readResponse(await fetch(`/api/souvenir?companyId=${encodeURIComponent(companyId)}&lookup=${encodeURIComponent(lookup)}`, { cache: "no-store" }));
-      setMember(data.member);
+      resetCollector(); setMember(data.member);
     } catch (err) { setError(err instanceof Error ? err.message : "No se pudo buscar el socio."); }
     finally { setSearching(false); }
   }
 
   async function confirmDelivery() {
-    if (!member || busy || member.souvenirDelivery) return;
+    if (!member || busy || member.souvenirDelivery || (collectedByOther && !collector)) return;
     setBusy(true);
     try {
-      await readResponse(await fetch("/api/souvenir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, memberId: member.id }) }));
+      await readResponse(await fetch("/api/souvenir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, memberId: member.id, collectedByOther, collectorEmployeeNumber: collectedByOther ? collector?.employeeNumber : undefined }) }));
       notify(`Souvenir entregado a ${member.firstName} ${member.lastName}.`, "success");
       resetSearch(); setRefresh(n => n + 1);
     } catch (err) {
@@ -211,9 +234,9 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
     {deliveryMode && company && <>
       <div className="grid grid-cols-3 gap-3">{[{ title: "Total de socios", value: members.length, color: "text-slate-900" }, { title: "Entregados", value: delivered, color: "text-emerald-700" }, { title: "Pendientes", value: members.length - delivered, color: "text-amber-700" }].map(item => <div key={item.title} className="border-b-2 border-slate-200 py-3"><p className="text-xs font-semibold text-slate-600 sm:text-sm">{item.title}</p><p className={`mt-1 text-3xl font-bold ${item.color}`}>{loading ? "…" : item.value}</p></div>)}</div>
       <section className="border-t border-slate-200 pt-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Listado de socios · {company.name}</h2><ExportExcelButton fileName={`souvenir-${company.name}`} rows={visible.map(m => ({ "No. de listado": m.listNumber, Empresa: company.name, Nombres: m.firstName, Apellidos: m.lastName, "Cédula mostrar": m.displayDocumentId, "Número de empleado": m.employeeNumber, Sexo: m.sex, Oficina: m.office, Unidad: m.unit, "Ubicación aproximada": m.approximateLocation, "Dirección": m.organizationalDirection, "Página del físico": m.physicalListPage, Estado: m.souvenirDelivery ? "Entregado" : "Pendiente", "Fecha de entrega": m.souvenirDelivery ? new Date(m.souvenirDelivery.deliveredAt).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }) : "", Responsable: m.souvenirDelivery?.deliveredBy.name }))} /></div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Listado de socios · {company.name}</h2><ExportExcelButton fileName={`souvenir-${company.name}`} rows={visible.map(m => ({ "No. de listado": m.listNumber, Empresa: company.name, Nombres: m.firstName, Apellidos: m.lastName, "Cédula mostrar": m.displayDocumentId, "Número de empleado": m.employeeNumber, Sexo: m.sex, Oficina: m.office, Unidad: m.unit, "Ubicación aproximada": m.approximateLocation, "Dirección": m.organizationalDirection, "Página del físico": m.physicalListPage, Estado: m.souvenirDelivery ? "Entregado" : "Pendiente", "Fecha de entrega": m.souvenirDelivery ? new Date(m.souvenirDelivery.deliveredAt).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }) : "", Responsable: m.souvenirDelivery?.deliveredBy.name, "Retiró": m.souvenirDelivery ? m.souvenirDelivery.collectedByOther ? "Otro empleado de EDESUR" : "El socio" : "", "Empleado que retiró": m.souvenirDelivery?.collectorEmployeeNumber, "Nombre de quien retiró": m.souvenirDelivery?.collectorName }))} /></div>
         <label className="mb-3 block max-w-xs text-sm font-semibold">Estado<select className={field + " mt-1"} value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Todos</option><option value="PENDING">Pendientes</option><option value="DELIVERED">Entregados</option></select></label>
-        <SouvenirTable key={`${companyId}:${filter}`} headers={["No.", "Nombre", "Cédula", "Número de empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Entrega / responsable"]} rows={visible.map(m => ({ id: m.id, group: `${company?.name || ""} · ${souvenirLocationLabel(m.approximateLocation)}`, cells: [m.listNumber, `${m.firstName} ${m.lastName}`, m.displayDocumentId, m.employeeNumber, m.sex, m.office, m.unit, m.approximateLocation, m.souvenirDelivery ? "Entregado" : "Pendiente", m.souvenirDelivery ? <span key="date">{new Date(m.souvenirDelivery.deliveredAt).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" })}<br />{m.souvenirDelivery.deliveredBy.name}</span> : "-"] }))} empty={loading ? "Cargando socios…" : "No hay socios en este listado."} />
+        <SouvenirTable key={`${companyId}:${filter}`} headers={["No.", "Nombre", "Cédula", "Número de empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Entrega / responsable", "Quién retiró"]} rows={visible.map(m => ({ id: m.id, group: `${company?.name || ""} · ${souvenirLocationLabel(m.approximateLocation)}`, cells: [m.listNumber, `${m.firstName} ${m.lastName}`, m.displayDocumentId, m.employeeNumber, m.sex, m.office, m.unit, m.approximateLocation, m.souvenirDelivery ? "Entregado" : "Pendiente", m.souvenirDelivery ? <span key="date">{new Date(m.souvenirDelivery.deliveredAt).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" })}<br />{m.souvenirDelivery.deliveredBy.name}</span> : "-", m.souvenirDelivery ? m.souvenirDelivery.collectedByOther ? `${m.souvenirDelivery.collectorName} · EDESUR · ${m.souvenirDelivery.collectorEmployeeNumber}` : "El socio" : "-"] }))} empty={loading ? "Cargando socios…" : "No hay socios en este listado."} />
       </section>
     </>}
     {companyModal && <Modal title="Seleccionar empresa" onClose={() => setCompanyModal(false)}><label className="block text-sm font-semibold">Empresa<select autoFocus value={chosenCompanyId} onChange={e => setChosenCompanyId(e.target.value)} className={field + " mt-2"}><option value="">Seleccione una empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{!companies.length && <p className="mt-3 text-sm text-amber-700">Configure la identificación de las empresas en Configuración.</p>}<div className="mt-6 flex justify-end gap-2"><button className={button} onClick={() => setCompanyModal(false)}>Cancelar</button><button disabled={!chosenCompanyId} className={button + " bg-emerald-700 text-white"} onClick={() => { try { sessionStorage.setItem(`souvenir-company:${userId}`, chosenCompanyId); } catch { /* Storage is optional. */ } setMembers([]); setCompanyId(chosenCompanyId); setRefresh(n => n + 1); setFilter("ALL"); setDeliveryMode(true); setCompanyModal(false); resetSearch(); }}><Check size={18} />Continuar</button></div></Modal>}
@@ -231,7 +254,17 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
       <div className="mb-5 flex items-center gap-3 text-emerald-800">{member.souvenirDelivery ? <CheckCircle2 size={28} /> : <Gift size={28} />}<p className="text-lg font-bold">{member.firstName} {member.lastName}</p></div>
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[["No. de listado", member.listNumber], ["Empresa", company?.name], ["Cédula", member.displayDocumentId], ["Número de empleado", member.employeeNumber], ["Sexo", member.sex], ["Oficina", member.office], ["Unidad", member.unit], ["Ubicación aproximada", member.approximateLocation], ...(member.organizationalDirection ? [["Dirección", member.organizationalDirection]] : []), ...(member.physicalListPage ? [["Página del listado físico", member.physicalListPage]] : [])].map(([key, value]) => <div key={key}><dt className="text-xs font-semibold text-slate-500">{key}</dt><dd className="mt-1 break-words text-sm font-semibold">{value || "Sin registrar"}</dd></div>)}</dl>
       {member.souvenirDelivery && <p role="status" className="mt-5 rounded-md bg-emerald-50 p-3 text-sm text-emerald-900">Entregado el {new Date(member.souvenirDelivery.deliveredAt).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" })} por {member.souvenirDelivery.deliveredBy.name}.</p>}
-      <div className="mt-6 grid grid-cols-2 gap-3"><button className={button} disabled={busy} onClick={resetSearch}>Cancelar</button><button className={button + " border-emerald-700 bg-emerald-700 text-white"} disabled={busy || !!member.souvenirDelivery} onClick={confirmDelivery}><Check size={18} />{busy ? "Guardando…" : "Entregado"}</button></div>
+      {member.souvenirDelivery?.collectedByOther && <p className="mt-3 text-sm">Retiró: {member.souvenirDelivery.collectorName} · EDESUR · Empleado {member.souvenirDelivery.collectorEmployeeNumber}</p>}
+      {!member.souvenirDelivery && <section className="mt-5 border-t border-slate-200 pt-4">
+        <label className="flex items-start gap-3 text-sm font-semibold"><input type="checkbox" checked={collectedByOther} disabled={busy} onChange={e => { resetCollector(); setCollectedByOther(e.target.checked); }} className="mt-0.5 h-5 w-5 accent-emerald-700" />Retira otro empleado de EDESUR</label>
+        {collectedByOther && <form onSubmit={validateCollector} className="mt-4 space-y-3">
+          <label className="block text-sm font-semibold">Número de empleado de quien retira<input required inputMode="numeric" autoComplete="off" value={collectorNumber} disabled={busy || validatingCollector} onChange={e => { collectorRequest.current++; setCollectorNumber(e.target.value.replace(/\D/g, "")); setCollector(null); setCollectorError(""); }} className={field + " mt-2"} /></label>
+          <button type="submit" disabled={busy || validatingCollector || !collectorNumber} className={button}><Search size={18} />{validatingCollector ? "Validando…" : "Validar empleado"}</button>
+          {collectorError && <p role="alert" className="text-sm text-red-700">{collectorError}</p>}
+          {collector && <p role="status" className="rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{collector.firstName} {collector.lastName} · EDESUR · Empleado {collector.employeeNumber}</p>}
+        </form>}
+      </section>}
+      <div className="mt-6 grid grid-cols-2 gap-3"><button className={button} disabled={busy} onClick={resetSearch}>Cancelar</button><button className={button + " border-emerald-700 bg-emerald-700 text-white"} disabled={busy || !!member.souvenirDelivery || (collectedByOther && !collector)} onClick={confirmDelivery}><Check size={18} />{busy ? "Guardando…" : "Entregado"}</button></div>
     </Modal>}
     {uploadModal && <section>
       <button className={button + " mb-5"} onClick={downloadTemplate}><Download size={18} />Descargar plantilla</button>

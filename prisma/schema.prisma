@@ -451,6 +451,9 @@ model SouvenirMember {
 }
 
 model SouvenirDelivery {
+  collectedByOther Boolean @default(false)
+  collectorEmployeeNumber String?
+  collectorName String?
   approximateLocation String?
   id String @id @default(cuid())
   listNumber Int?

@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
     approximateLocation: history && m.souvenirDelivery ? m.souvenirDelivery.approximateLocation : m.approximateLocation,
     organizationalDirection: m.souvenirDelivery?.organizationalDirection ?? m.organizationalDirection,
     physicalListPage: m.souvenirDelivery?.physicalListPage ?? m.physicalListPage,
+    collectedByOther: m.souvenirDelivery?.collectedByOther ?? false, collectorEmployeeNumber: m.souvenirDelivery?.collectorEmployeeNumber ?? null, collectorName: m.souvenirDelivery?.collectorName ?? null,
     clearedAt: null, deliveredAt: m.souvenirDelivery?.deliveredAt ?? null, responsible: m.souvenirDelivery?.deliveredBy.name ?? null
-  })), ...retained.map(d => ({ id: d.id, listNumber: d.listNumber, companyId: d.companyId || d.companyName, companyName: d.companyName, firstName: d.firstName || d.memberName, lastName: d.lastName || "", fullName: d.memberName, documentId: d.documentId, displayDocumentId: d.displayDocumentId, employeeNumber: d.employeeNumber, sex: d.sex, office: d.office, unit: d.unit, approximateLocation: d.approximateLocation, organizationalDirection: d.organizationalDirection, physicalListPage: d.physicalListPage, clearedAt: null, deliveredAt: d.deliveredAt, responsible: d.deliveredBy.name }))] });
+  })), ...retained.map(d => ({ id: d.id, listNumber: d.listNumber, companyId: d.companyId || d.companyName, companyName: d.companyName, firstName: d.firstName || d.memberName, lastName: d.lastName || "", fullName: d.memberName, documentId: d.documentId, displayDocumentId: d.displayDocumentId, employeeNumber: d.employeeNumber, sex: d.sex, office: d.office, unit: d.unit, approximateLocation: d.approximateLocation, organizationalDirection: d.organizationalDirection, physicalListPage: d.physicalListPage, collectedByOther: d.collectedByOther, collectorEmployeeNumber: d.collectorEmployeeNumber, collectorName: d.collectorName, clearedAt: null, deliveredAt: d.deliveredAt, responsible: d.deliveredBy.name }))] });
 }
 
 export async function DELETE(request: NextRequest) {

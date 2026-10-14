@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { jsonError } from "@/lib/api";
 import { normalizeLookupValue } from "@/lib/data-update";
 import { souvenirDeliveryMatch } from "@/lib/souvenir-deliveries";
+import { findSouvenirCollector } from "@/lib/souvenir-collector";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
       const value = company.dataUpdateLookupField === "DOCUMENT_ID" ? normalizeLookupValue(lookup, company.dataUpdateLookupField) : lookup;
       const member = await prisma.souvenirMember.findFirst({
         where: { clearedAt: null, enrollmentCompanyId: companyId, ...(company.dataUpdateLookupField === "DOCUMENT_ID" ? { documentId: value } : { employeeNumber: value }) },
-        select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } }
+        select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { collectedByOther: true, collectorEmployeeNumber: true, collectorName: true, deliveredAt: true, deliveredBy: { select: { name: true } } } } }
       });
       if (!member) return jsonError("No se encontró el socio en el listado de esta empresa.", 404);
       return NextResponse.json({ member });
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   }
   const members = await prisma.souvenirMember.findMany({
     where: { enrollmentCompanyId: companyId, clearedAt: null },
-    select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { deliveredAt: true, deliveredBy: { select: { name: true } } } } },
+    select: { id: true, listNumber: true, firstName: true, lastName: true, displayDocumentId: true, sex: true, office: true, unit: true, approximateLocation: true, employeeNumber: true, organizationalDirection: true, physicalListPage: true, souvenirDelivery: { select: { collectedByOther: true, collectorEmployeeNumber: true, collectorName: true, deliveredAt: true, deliveredBy: { select: { name: true } } } } },
     orderBy: { listNumber: "asc" }
   });
   const delivered = members.filter(member => member.souvenirDelivery).length;
@@ -41,20 +42,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const memberId = String(body.memberId || "");
     const companyId = String(body.companyId || "");
+    if (body.collectedByOther !== undefined && typeof body.collectedByOther !== "boolean") return jsonError("El cotejo de quien retira no es válido.", 422);
+    const collectedByOther = body.collectedByOther === true;
     const delivery = await prisma.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(209831)`;
       const member = await tx.souvenirMember.findFirst({ where: { id: memberId, clearedAt: null, enrollmentCompanyId: companyId, enrollmentCompany: { isActive: true, dataUpdateLookupField: { not: null } } }, include: { enrollmentCompany: true } });
       if (!member) throw new Error("El socio o la empresa ya no están disponibles.");
       if (await tx.souvenirDelivery.findFirst({ where: souvenirDeliveryMatch(member, member.enrollmentCompany.name) })) return null;
+      const collector = collectedByOther ? await findSouvenirCollector(tx, String(body.collectorEmployeeNumber || ""), member.id) : null;
       const record = await tx.souvenirDelivery.create({ data: {
         souvenirMemberId: member.id, listNumber: member.listNumber, deliveredById: user.id,
+        collectedByOther, collectorEmployeeNumber: collector?.employeeNumber ?? null,
+        collectorName: collector ? `${collector.firstName} ${collector.lastName}` : null,
         companyId: member.enrollmentCompanyId, firstName: member.firstName, lastName: member.lastName,
         memberName: `${member.firstName} ${member.lastName}`, companyName: member.enrollmentCompany.name,
         documentId: member.documentId, employeeNumber: member.employeeNumber,
         displayDocumentId: member.displayDocumentId, sex: member.sex, office: member.office, unit: member.unit, approximateLocation: member.approximateLocation,
         organizationalDirection: member.organizationalDirection, physicalListPage: member.physicalListPage
       } });
-      await tx.auditLog.create({ data: { action: "SOUVENIR_DELIVERED", entityType: "SouvenirDelivery", entityId: record.id, userId: user.id, reason: "Entrega de souvenir confirmada", metadata: { memberId: member.id, companyId, memberName: record.memberName } } });
+      await tx.auditLog.create({ data: { action: "SOUVENIR_DELIVERED", entityType: "SouvenirDelivery", entityId: record.id, userId: user.id, reason: "Entrega de souvenir confirmada", metadata: { memberId: member.id, companyId, memberName: record.memberName, collectedByOther, collectorEmployeeNumber: record.collectorEmployeeNumber, collectorName: record.collectorName } } });
       return record;
     });
     if (!delivery) return jsonError("Este socio ya recibió su souvenir. No se permite otra entrega.", 409);
