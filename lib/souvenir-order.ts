@@ -9,10 +9,20 @@ export function compareSouvenirCompanies(a: string, b: string) {
   return rank(a) - rank(b) || collator.compare(key(a), key(b));
 }
 
+export function compareSouvenirLocations(a: string | null, b: string | null) {
+  const rank = (value: string | null) => {
+    if (!value?.trim()) return 4;
+    const label = key(value).replace(/[\u2010-\u2015]/g, "-").replace(/\s*-\s*/g, " - ").toLocaleUpperCase("es");
+    if (label === "SANTO DOMINGO - TORRE SERRANO") return 0;
+    if (label === "SANTO DOMINGO - TORRE CRISTAL") return 1;
+    return /^SANTO DOMINGO(?:\s|$)/.test(label) ? 2 : 3;
+  };
+  return rank(a) - rank(b) || collator.compare(souvenirLocationKey(a), souvenirLocationKey(b));
+}
+
 export function compareSouvenirMembers(a: OrderedMember, b: OrderedMember) {
   return compareSouvenirCompanies(a.companyName, b.companyName)
-    || Number(!a.approximateLocation?.trim()) - Number(!b.approximateLocation?.trim())
-    || collator.compare(souvenirLocationKey(a.approximateLocation), souvenirLocationKey(b.approximateLocation))
+    || compareSouvenirLocations(a.approximateLocation, b.approximateLocation)
     || Number(!a.employeeNumber) - Number(!b.employeeNumber)
     || collator.compare(a.employeeNumber || a.documentId || "", b.employeeNumber || b.documentId || "")
     || a.id.localeCompare(b.id);

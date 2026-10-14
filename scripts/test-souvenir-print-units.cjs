@@ -31,6 +31,16 @@ async function main() {
     { id: 'doc1', companyName: 'EDESUR', approximateLocation: 'A', employeeNumber: null, documentId: '00000000001' }
   ];
   assert.deepEqual(example.sort(compareSouvenirMembers).map(r => r.id), ['emp2', 'emp10', 'doc1', 'doc2', 'other']);
+  const { compareSouvenirLocations } = load('lib/souvenir-order.ts');
+  const locations = [null, 'AZUA', 'SANTO DOMINGO - FERIA', 'SANTO DOMINGO - TORRE CRISTAL', ' santo domingo-torre serrano '];
+  assert.deepEqual(locations.sort(compareSouvenirLocations), [' santo domingo-torre serrano ', 'SANTO DOMINGO - TORRE CRISTAL', 'SANTO DOMINGO - FERIA', 'AZUA', null]);
+  const companiesFirst = [
+    { ...example[0], id: 'other-serrano', companyName: 'DATACAMPO', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' },
+    { ...example[0], id: 'edesur-azua', approximateLocation: 'AZUA' },
+    { ...example[0], id: 'edesur-cristal', approximateLocation: 'SANTO DOMINGO - TORRE CRISTAL' },
+    { ...example[0], id: 'edesur-serrano', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }
+  ];
+  assert.deepEqual(companiesFirst.sort(compareSouvenirMembers).map(r => r.id), ['edesur-serrano', 'edesur-cristal', 'edesur-azua', 'other-serrano']);
   const { createSouvenirLocationPdf, createSouvenirListPdf } = load('lib/souvenir-print-pdf.ts');
   const bytes = await createSouvenirLocationPdf('Sector Baní', rows.slice(0, 22));
   const document = await PDFDocument.load(bytes);
