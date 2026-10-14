@@ -315,14 +315,14 @@ async function main() {
   await db.souvenirMember.createMany({ data: Array.from({ length: 12 }, (_, i) => ({ enrollmentCompanyId: company.id, firstName: `PAGINA PRUEBA ${stamp} ${i}`, lastName: 'TABLA', employeeNumber: `999999999900${i}`, office: 'OFICINA PRUEBA IMPRESION' })) });
   await page.goto(base + '/entrega-souvenir/imprimir');
   await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
-  await page.getByLabel('Oficina', { exact: true }).selectOption('OFICINA PRUEBA IMPRESION');
+  await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('SIN UBICACIÓN ASIGNADA');
   assert((await page.getByRole('table').count()) >= 2);
   assert.equal(await page.locator('table tbody tr').count(), 12);
   assert.equal(await page.getByRole('table').first().getByRole('columnheader', { name: 'Firma', exact: true, includeHidden: true }).count(), 1);
   assert.equal(await page.getByRole('table').first().getByRole('columnheader', { name: 'Cédula consulta', exact: true, includeHidden: true }).count(), 0);
   await page.screenshot({ path: 'outputs/souvenir-print-mobile.png', fullPage: true });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-  const pdfResponse = await api(`/api/souvenir/imprimir?companyId=${company.id}&office=OFICINA%20PRUEBA%20IMPRESION`);
+  const pdfResponse = await api(`/api/souvenir/imprimir?companyId=${company.id}&location=SIN%20UBICACI%C3%93N%20ASIGNADA`);
   assert.equal(pdfResponse.status, 200);
   assert.equal(pdfResponse.headers.get('content-type'), 'application/pdf');
   const pdfBytes = Buffer.from(await pdfResponse.arrayBuffer());
@@ -353,9 +353,9 @@ async function main() {
   await page.goto(base + '/entrega-souvenir/listado');
   await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
   await page.getByLabel('Buscar socio', { exact: true }).fill('PAGINA PRUEBA');
-  assert.equal(await page.getByRole('table').nth(1).locator('tbody tr').count(), 10);
+  assert.equal(await page.getByRole('table').nth(1).locator('tbody tr:not([data-souvenir-group])').count(), 10);
   await page.getByRole('button', { name: 'Página siguiente', exact: true }).click();
-  assert.equal(await page.getByRole('table').nth(1).locator('tbody tr').count(), 2);
+  assert.equal(await page.getByRole('table').nth(1).locator('tbody tr:not([data-souvenir-group])').count(), 2);
   assert(await page.evaluate(() => [...document.querySelectorAll('table')].every(table => table.scrollWidth <= table.clientWidth + 2)));
   await page.getByLabel('Buscar socio', { exact: true }).fill('');
   const generalBefore = await page.getByRole('table').first().innerText();

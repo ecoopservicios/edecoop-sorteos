@@ -1,6 +1,9 @@
 .root { min-height: 100vh; background: #f1f5f9; color: #111; padding-bottom: 24px; }
 .sheet { width: min(100% - 32px, 1040px); margin: 0 auto 24px; padding: 24px; background: white; }
 .heading { margin-bottom: 12px; }
+.heading strong { min-width: 0; overflow-wrap: anywhere; }
+.heading span { flex-shrink: 0; }
+.footer { overflow-wrap: anywhere; }
 .unit { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 12px; break-inside: avoid; }
 .heading h2 { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
 .heading div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }

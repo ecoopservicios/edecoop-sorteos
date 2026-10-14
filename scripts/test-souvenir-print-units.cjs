@@ -15,28 +15,36 @@ function load(relative) {
 }
 
 async function main() {
-  const rows = Array.from({ length: 25 }, (_, i) => ({ id: String(i), listNumber: 125 + i, firstName: 'ANA', lastName: `PÉREZ ${i}`, displayDocumentId: '***-*******-*', employeeNumber: String(12000 + i), companyId: 'test', companyName: 'EDESUR', office: 'Sector Baní', unit: i < 22 ? 'COMERCIAL' : i < 24 ? 'OPERACIONES' : null }));
+  const rows = Array.from({ length: 25 }, (_, i) => ({ id: String(i), listNumber: 125 + i, firstName: 'ANA', lastName: 'PÉREZ ' + i, displayDocumentId: '***-*******-*', documentId: null, employeeNumber: String(12000 + i), companyId: 'test', companyName: 'EDESUR', office: 'Sector Baní', unit: i % 2 ? 'COMERCIAL' : 'OPERACIONES', approximateLocation: i < 22 ? 'Sector Baní' : i < 24 ? 'Oficina Central' : null }));
   const { souvenirPrintSheets } = load('lib/souvenir-print.ts');
   const sheets = souvenirPrintSheets(rows);
-  assert(sheets.every(sheet => new Set(sheet.members.map(m => m.unit)).size === 1));
+  assert(sheets.every(sheet => new Set(sheet.members.map(m => m.approximateLocation)).size === 1));
   assert.deepEqual(sheets.flatMap(sheet => sheet.members.map(m => m.listNumber)), rows.map(m => m.listNumber));
-  assert.equal(sheets[0].unit, 'COMERCIAL');
-  assert.equal(sheets.find(s => s.unit === 'OPERACIONES').unitTotal, 2);
-  const { createSouvenirOfficePdf, createSouvenirListPdf } = load('lib/souvenir-print-pdf.ts');
-  const bytes = await createSouvenirOfficePdf('Sector Baní', rows);
+  assert.equal(sheets[0].location, 'Sector Baní');
+  assert.equal(sheets.find(s => s.location === 'Oficina Central').total, 2);
+  const { compareSouvenirMembers } = load('lib/souvenir-order.ts');
+  const example = [
+    { id: 'emp10', companyName: 'EDESUR', approximateLocation: 'A', employeeNumber: '10', documentId: null },
+    { id: 'doc2', companyName: 'EDESUR', approximateLocation: 'A', employeeNumber: null, documentId: '00000000002' },
+    { id: 'other', companyName: 'DATACAMPO', approximateLocation: 'A', employeeNumber: '1', documentId: null },
+    { id: 'emp2', companyName: 'EDESUR', approximateLocation: 'A', employeeNumber: '2', documentId: null },
+    { id: 'doc1', companyName: 'EDESUR', approximateLocation: 'A', employeeNumber: null, documentId: '00000000001' }
+  ];
+  assert.deepEqual(example.sort(compareSouvenirMembers).map(r => r.id), ['emp2', 'emp10', 'doc1', 'doc2', 'other']);
+  const { createSouvenirLocationPdf, createSouvenirListPdf } = load('lib/souvenir-print-pdf.ts');
+  const bytes = await createSouvenirLocationPdf('Sector Baní', rows.slice(0, 22));
   const document = await PDFDocument.load(bytes);
-  assert.equal(document.getPageCount(), 5);
+  assert.equal(document.getPageCount(), 2);
   assert(document.getPages().every(page => page.getWidth() === 792 && page.getHeight() === 612));
-  fs.writeFileSync('outputs/souvenir-units-test.pdf', bytes);
-  const other = await PDFDocument.load(await createSouvenirOfficePdf('Sector Baní', rows.slice(21, 24).map(m => ({ ...m, companyName: 'OTRA EMPRESA' }))));
-  assert.equal(other.getPageCount(), 1);
   const mergedBytes = await createSouvenirListPdf([
-    { office: 'Otra oficina', members: rows.slice(21, 24).map(m => ({ ...m, listNumber: m.listNumber + 100, companyName: 'OTRA EMPRESA' })) },
-    { office: 'Sector Baní', members: rows }
+    { location: 'Otra ubicación', members: rows.slice(21, 24).map(m => ({ ...m, listNumber: m.listNumber + 100, companyName: 'OTRA EMPRESA' })) },
+    { location: 'Sector Baní', members: rows.slice(0, 22) },
+    { location: 'Oficina Central', members: rows.slice(22, 24) },
+    { location: 'SIN UBICACIÓN ASIGNADA', members: rows.slice(24) }
   ]);
   const merged = await PDFDocument.load(mergedBytes);
-  assert.equal(merged.getPageCount(), 6);
+  assert.equal(merged.getPageCount(), 5);
   fs.writeFileSync('outputs/souvenir-combined-test.pdf', mergedBytes);
-  console.log('PASS: EDESUR units start on separate pages, continuous member numbers, 5 landscape pages in one PDF; other companies unchanged.');
+  console.log('PASS: locations start on new pages in one PDF; company, numeric employee and fallback ID ordering.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

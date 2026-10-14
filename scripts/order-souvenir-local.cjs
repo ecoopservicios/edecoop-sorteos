@@ -30,7 +30,7 @@ async function main() {
     const expected = [...members].map(m => ({ ...m, companyName: m.enrollmentCompany.name })).sort(loadLocalTs('lib/souvenir-order.ts').compareSouvenirMembers);
     assert.deepEqual(members.map(m => m.id), expected.map(m => m.id));
     assert(members.every((m, i) => m.listNumber === i + 1));
-    console.log(`PASS: ${members.length} socios numerados por empresa/oficina; primera empresa: ${members[0]?.enrollmentCompany.name || '-'}.`);
+    console.log(`PASS: ${members.length} socios numerados por empresa/ubicación/identificación; primera empresa: ${members[0]?.enrollmentCompany.name || '-'}.`);
   } finally { await db.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

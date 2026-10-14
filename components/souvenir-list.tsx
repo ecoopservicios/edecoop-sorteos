@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Search, Trash2, X } from "lucide-react";
 import * as XLSX from "xlsx";
-import { compareSouvenirCompanies } from "@/lib/souvenir-order";
+import { compareSouvenirCompanies, compareSouvenirMembers, souvenirLocationKey, souvenirLocationLabel } from "@/lib/souvenir-order";
 import { notify } from "@/lib/toast";
 import { SouvenirTable } from "@/components/souvenir-table";
 
@@ -35,6 +35,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [company, setCompany] = useState("");
+  const [location, setLocation] = useState("");
   const [search, setSearch] = useState("");
   const [state, setState] = useState("ALL");
   const [refresh, setRefresh] = useState(0);
@@ -47,14 +48,15 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
     const controller = new AbortController(); setLoading(true); setError("");
     fetch(`/api/souvenir/listado?view=${view}`, { cache: "no-store", signal: controller.signal })
       .then(async response => { const result = await response.json().catch(() => null); if (!response.ok || !result) throw new Error(result?.error || "No se pudo cargar el listado."); return result; })
-      .then(data => setRows(data.members.sort((a: Row, b: Row) => (a.listNumber ?? Number.MAX_SAFE_INTEGER) - (b.listNumber ?? Number.MAX_SAFE_INTEGER))))
+      .then(data => setRows(data.members.sort(compareSouvenirMembers)))
       .catch(e => { if (!controller.signal.aborted) setError(e.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [view, refresh]);
   const companies = [...new Map(rows.map(row => [row.companyId, row.companyName])).entries()].sort((a, b) => compareSouvenirCompanies(a[1], b[1]));
   const query = key(search);
-  const filtered = rows.filter(row => (!company || row.companyId === company) && (state === "ALL" || (state === "DELIVERED" ? !!row.deliveredAt : !row.deliveredAt)) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
+  const locations = [...new Map(rows.filter(row => !company || row.companyId === company).map(row => [souvenirLocationKey(row.approximateLocation), souvenirLocationLabel(row.approximateLocation)])).entries()];
+  const filtered = rows.filter(row => (!company || row.companyId === company) && (!location || souvenirLocationKey(row.approximateLocation) === location) && (state === "ALL" || (state === "DELIVERED" ? !!row.deliveredAt : !row.deliveredAt)) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
   const quantities = summary(view === "listado" ? rows : filtered);
   const total = quantities.reduce((sum, row) => sum + row.Total, 0);
   const delivered = quantities.reduce((sum, row) => sum + row.Entregados, 0);
@@ -74,7 +76,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       const result = await response.json().catch(() => null);
       if (!response.ok || !result) throw new Error(result?.error || "No se pudo limpiar el listado.");
       notify(`${result.count} socios retirados del listado. Estado de Entrega conservado.`, "success");
-      setClearing(false); setConfirmation(""); setReason(""); setCompany(""); setRefresh(n => n + 1);
+      setClearing(false); setConfirmation(""); setReason(""); setCompany(""); setLocation(""); setRefresh(n => n + 1);
     } catch (e) { notify(e instanceof Error ? e.message : "No se pudo limpiar el listado.", "error"); }
     finally { setBusy(false); }
   }
@@ -83,8 +85,9 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
     <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">{view === "listado" ? "Consultar listado" : "Estado de Entrega"}</h1><Link href="/entrega-souvenir" className={button}><ArrowLeft size={18} />Volver al inicio</Link></header>
     <nav className="flex flex-wrap gap-2" aria-label="Secciones de souvenir"><Link href="/entrega-souvenir/listado" className={button} aria-current={view === "listado" ? "page" : undefined}>Consultar listado</Link><Link href="/entrega-souvenir/estado" className={button} aria-current={view === "estado" ? "page" : undefined}>Estado de Entrega</Link><Link href="/entrega-souvenir/imprimir" className={button}>Imprimir listado</Link>{isAdmin && <Link href="/entrega-souvenir/carga" className={button}>Cargar listado</Link>}</nav>
     {error && <p role="alert" className="text-red-700">{error}</p>}
-    <section className="grid gap-3 border-y border-slate-200 py-4 md:grid-cols-3">
-      <label className="text-sm font-semibold">Empresa<select aria-label="Empresa" className={input + " mt-1"} value={company} onChange={e => setCompany(e.target.value)}><option value="">Todas las empresas</option>{companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+    <section className="grid gap-3 border-y border-slate-200 py-4 md:grid-cols-2 xl:grid-cols-4">
+      <label className="text-sm font-semibold">Empresa<select aria-label="Empresa" className={input + " mt-1"} value={company} onChange={e => { setCompany(e.target.value); setLocation(""); }}><option value="">Todas las empresas</option>{companies.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="text-sm font-semibold">Ubicación aproximada<select aria-label="Ubicación aproximada" className={input + " mt-1"} value={location} onChange={e => setLocation(e.target.value)}><option value="">Todas las ubicaciones</option>{locations.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="text-sm font-semibold">Buscar socio<div className="relative mt-1"><Search size={18} className="absolute left-3 top-3 text-slate-500" /><input className={input + " !pl-10"} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, empleado o cédula" /></div></label>
       <label className="text-sm font-semibold">Estado<select aria-label="Estado" className={input + " mt-1"} value={state} onChange={e => setState(e.target.value)}><option value="ALL">Todos</option><option value="PENDING">Pendientes</option><option value="DELIVERED">Entregados</option></select></label>
     </section>
@@ -93,7 +96,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       <SouvenirTable headers={["Empresa", "Total", "Pendientes", "Entregados", "% de entrega"]} rows={quantities.map(row => ({ id: row.Empresa, cells: [row.Empresa, row.Total, <span key="pending" className="text-amber-700">{row.Pendientes}</span>, <span key="delivered" className="text-emerald-700">{row.Entregados}</span>, `${row["Entrega %"]}%`] }))} empty={loading ? "Cargando..." : "Sin registros."} />
     </section>
     <section><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Detalle de socios ({filtered.length})</h2><div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={download}><Download size={18} />Descargar Excel</button>{view === "listado" && isAdmin && <button className={button + " border-red-200 text-red-700"} disabled={loading || !rows.length} onClick={() => setClearing(true)}><Trash2 size={18} />Limpiar listado</button>}</div></div>
-      <SouvenirTable key={`${company}:${search}:${state}`} headers={["No.", "Empresa", "Nombre", "Cédula consulta", "Cédula mostrar", "Empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Fecha / responsable"]} rows={filtered.map(row => ({ id: row.id, cells: [row.listNumber, row.companyName, row.fullName, row.documentId, row.displayDocumentId, row.employeeNumber, row.sex, row.office, row.unit, row.approximateLocation, row.deliveredAt ? "Entregado" : "Pendiente", <span key="date">{dateLabel(row.deliveredAt)}<br />{row.responsible}</span>] }))} empty={loading ? "Cargando..." : "Sin coincidencias."} />
+      <SouvenirTable key={`${company}:${location}:${search}:${state}`} headers={["No.", "Empresa", "Nombre", "Cédula consulta", "Cédula mostrar", "Empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Fecha / responsable"]} rows={filtered.map(row => ({ id: row.id, group: `${row.companyName} · ${souvenirLocationLabel(row.approximateLocation)}`, cells: [row.listNumber, row.companyName, row.fullName, row.documentId, row.displayDocumentId, row.employeeNumber, row.sex, row.office, row.unit, row.approximateLocation, row.deliveredAt ? "Entregado" : "Pendiente", <span key="date">{dateLabel(row.deliveredAt)}<br />{row.responsible}</span>] }))} empty={loading ? "Cargando..." : "Sin coincidencias."} />
     </section>
     {clearing && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-label="Limpiar listado" onSubmit={clear} className="w-full max-w-lg space-y-4 rounded-lg bg-white p-5 shadow-xl">
       <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Limpiar listado</h2><button type="button" className={button} title="Cerrar" disabled={busy} onClick={() => setClearing(false)}><X size={18} /></button></div>

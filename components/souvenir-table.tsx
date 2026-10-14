@@ -1,22 +1,24 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { Fragment, ReactNode, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function SouvenirTable({ headers, rows, empty = "Sin registros.", pageSize = 10 }: {
-  headers: string[]; rows: { id: string; cells: ReactNode[] }[]; empty?: string; pageSize?: number;
+  headers: string[]; rows: { id: string; cells: ReactNode[]; group?: string }[]; empty?: string; pageSize?: number;
 }) {
   const [page, setPage] = useState(1);
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const current = Math.min(page, pages);
   const visible = rows.slice((current - 1) * pageSize, current * pageSize);
+  const counts = new Map<string, number>();
+  rows.forEach(row => { if (row.group) counts.set(row.group, (counts.get(row.group) || 0) + 1); });
   return <div className="min-w-0">
     <table role="table" className="block w-full rounded-md border border-slate-200 text-left text-sm lg:table lg:table-fixed">
       <thead role="rowgroup" className="hidden bg-slate-100 lg:table-header-group"><tr role="row">{headers.map(h => <th key={h} role="columnheader" className="p-3 align-top [overflow-wrap:anywhere]">{h}</th>)}</tr></thead>
       <tbody role="rowgroup" className="block lg:table-row-group">
-        {visible.map(row => <tr key={row.id} role="row" className="grid grid-cols-1 border-t border-slate-200 first:border-t-0 sm:grid-cols-2 lg:table-row lg:first:border-t">
+        {visible.map((row, index) => <Fragment key={row.id}>{row.group && (index === 0 || row.group !== visible[index - 1].group) && <tr data-souvenir-group role="row" className="block bg-emerald-50 lg:table-row"><td colSpan={headers.length} className="block px-3 py-3 font-semibold text-emerald-950 [overflow-wrap:anywhere] lg:table-cell">{row.group} · {counts.get(row.group)} socios</td></tr>}<tr role="row" className="grid grid-cols-1 border-t border-slate-200 first:border-t-0 sm:grid-cols-2 lg:table-row lg:first:border-t">
           {row.cells.map((cell, i) => <td key={headers[i]} role="cell" className="block min-w-0 p-3 align-top [overflow-wrap:anywhere] lg:table-cell"><span className="mb-1 block text-xs font-semibold text-slate-500 lg:hidden">{headers[i]}</span>{cell ?? "-"}</td>)}
-        </tr>)}
+        </tr></Fragment>)}
         {!rows.length && <tr role="row" className="block lg:table-row"><td role="cell" colSpan={headers.length} className="block p-5 text-center text-slate-500 lg:table-cell">{empty}</td></tr>}
       </tbody>
     </table>
