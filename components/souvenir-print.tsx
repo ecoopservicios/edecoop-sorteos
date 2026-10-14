@@ -44,9 +44,9 @@ export function SouvenirPrint({ members }: { members: SouvenirPrintMember[] }) {
     </div>
     {!sheets.length && <p className={styles.controls + " p-6 text-center text-slate-500"}>No hay socios para imprimir.</p>}
     {sheets.map((sheet, index) => <section key={`${sheet.companyId}:${sheet.location}:${sheet.page}`} className={styles.sheet} aria-label={`Ubicación aproximada ${sheet.location}, página ${index + 1}`}>
-      <header className={styles.heading}><h2>Entrega de Souvenir Aniversario · EDECOOP</h2><p className="mb-2 text-sm font-semibold">Empresa: {sheet.companyName}</p><div><strong>Ubicación aproximada: {sheet.location}</strong><span>Cantidad: {sheet.total} socios</span></div></header>
-      <table className={styles.table}><colgroup>{[5, 17, 19, 12, 10, 13, 24].map((width, i) => <col key={i} style={{ width: `${width}%` }} />)}</colgroup><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{sheet.members.map(m => <tr key={m.id}>{[m.listNumber, m.firstName, m.lastName, m.displayDocumentId || "-", m.employeeNumber || "-", m.companyName, ""].map((value, index) => <td key={index} data-label={columns[index]} className={index === 6 ? styles.signature : undefined}>{value}</td>)}</tr>)}</tbody></table>
-      <footer className={styles.footer}>Ubicación aproximada: {sheet.location} · Página {index + 1} de {sheets.length}</footer>
+      <header className={styles.heading}><h2>Entrega de Souvenir Aniversario · EDECOOP</h2><strong>Empresa: {sheet.companyName}</strong><strong>Ubicación: {sheet.location}</strong><span>{sheet.total} socios</span></header>
+      <table className={styles.table}><colgroup>{[25, 130, 165, 100, 80, 80, 188].map((width, i) => <col key={i} style={{ width: `${width / 768 * 100}%` }} />)}</colgroup><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{sheet.members.map(m => <tr key={m.id}>{[m.listNumber, m.firstName, m.lastName, m.displayDocumentId || "-", m.employeeNumber || "-", m.companyName, ""].map((value, index) => <td key={index} data-label={columns[index]} className={index === 6 ? styles.signature : undefined}>{value}</td>)}</tr>)}</tbody></table>
+      <footer className={styles.footer}>Página {index + 1} de {sheets.length}</footer>
     </section>)}
   </main>;
 }

@@ -316,7 +316,7 @@ async function main() {
   await page.goto(base + '/entrega-souvenir/imprimir');
   await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
   await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('SIN UBICACIÓN ASIGNADA');
-  assert((await page.getByRole('table').count()) >= 2);
+  assert.equal(await page.getByRole('table').count(), 1);
   assert.equal(await page.locator('table tbody tr').count(), 12);
   assert.equal(await page.getByRole('table').first().getByRole('columnheader', { name: 'Firma', exact: true, includeHidden: true }).count(), 1);
   assert.equal(await page.getByRole('table').first().getByRole('columnheader', { name: 'Cédula consulta', exact: true, includeHidden: true }).count(), 0);
@@ -329,7 +329,7 @@ async function main() {
   require('fs').writeFileSync('outputs/souvenir-office-test.pdf', pdfBytes);
   const { PDFDocument } = require('pdf-lib');
   const pdfDoc = await PDFDocument.load(pdfBytes);
-  assert(pdfDoc.getPageCount() >= 2);
+  assert.equal(pdfDoc.getPageCount(), 1);
   for (const pdfPage of pdfDoc.getPages()) assert.deepEqual(pdfPage.getSize(), { width: 792, height: 612 });
   const combinedResponse = await api(`/api/souvenir/imprimir?companyId=${company.id}`);
   assert.equal(combinedResponse.status, 200);
@@ -345,7 +345,7 @@ async function main() {
   const printGeometry = await page.getByRole('table').first().evaluate(table => ({ width: table.getBoundingClientRect().width, height: table.closest('section').getBoundingClientRect().height, signatureHeight: table.querySelector('tbody td:last-child').getBoundingClientRect().height }));
   await page.screenshot({ path: 'outputs/souvenir-print-layout.png', fullPage: true });
   assert(printGeometry.height < 720, JSON.stringify(printGeometry));
-  assert(printGeometry.signatureHeight >= 50);
+  assert(printGeometry.signatureHeight >= 10);
   assert(!(await page.getByRole('button', { name: 'Imprimir listado', exact: true }).isVisible()));
   await page.screenshot({ path: 'outputs/souvenir-print-layout.png', fullPage: true });
   await page.emulateMedia({ media: 'screen' });

@@ -6,7 +6,7 @@ export type SouvenirPrintMember = {
   approximateLocation: string | null;
 };
 
-export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 10) {
+export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 50) {
   const groups = new Map<string, { location: string; members: SouvenirPrintMember[] }>();
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
     const key = member.companyId + ":" + souvenirLocationKey(member.approximateLocation);
@@ -15,16 +15,7 @@ export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 1
   }
   return [...groups.values()].flatMap(group => {
     const chunks: SouvenirPrintMember[][] = [];
-    let current: SouvenirPrintMember[] = [], height = 0;
-    for (const member of group.members) {
-      const values = [member.firstName, member.lastName, member.displayDocumentId || "", member.employeeNumber || "", member.companyName];
-      const capacities = [18, 22, 14, 12, 15];
-      const lines = Math.max(...values.map((value, i) => Math.ceil(value.length / capacities[i])));
-      const rowHeight = Math.max(54, lines * 15 + 17);
-      if (current.length && (current.length >= pageSize || height + rowHeight > 500)) { chunks.push(current); current = []; height = 0; }
-      current.push(member); height += rowHeight;
-    }
-    if (current.length) chunks.push(current);
+    for (let i = 0; i < group.members.length; i += pageSize) chunks.push(group.members.slice(i, i + pageSize));
     return chunks.map((members, i) => ({ companyId: members[0].companyId, companyName: members[0].companyName, location: group.location, total: group.members.length, page: i + 1, pages: chunks.length, members }));
   });
 }

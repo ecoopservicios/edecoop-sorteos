@@ -44,7 +44,7 @@ async function main() {
   const { createSouvenirLocationPdf, createSouvenirListPdf } = load('lib/souvenir-print-pdf.ts');
   const bytes = await createSouvenirLocationPdf('Sector Baní', rows.slice(0, 22));
   const document = await PDFDocument.load(bytes);
-  assert.equal(document.getPageCount(), 2);
+  assert.equal(document.getPageCount(), 1);
   assert(document.getPages().every(page => page.getWidth() === 792 && page.getHeight() === 612));
   const mergedBytes = await createSouvenirListPdf([
     { location: 'Otra ubicación', members: rows.slice(21, 24).map(m => ({ ...m, listNumber: m.listNumber + 100, companyName: 'OTRA EMPRESA' })) },
@@ -53,8 +53,13 @@ async function main() {
     { location: 'SIN UBICACIÓN ASIGNADA', members: rows.slice(24) }
   ]);
   const merged = await PDFDocument.load(mergedBytes);
-  assert.equal(merged.getPageCount(), 5);
+  assert.equal(merged.getPageCount(), 4);
   fs.writeFileSync('outputs/souvenir-combined-test.pdf', mergedBytes);
+  const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 1, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
+  const compactPdf = await createSouvenirLocationPdf(compactRows[0].approximateLocation, compactRows);
+  assert.equal((await PDFDocument.load(compactPdf)).getPageCount(), 3);
+  assert.deepEqual(souvenirPrintSheets(compactRows).map(s => s.members.length), [50, 50, 1]);
+  fs.writeFileSync('outputs/souvenir-50-rows-test.pdf', compactPdf);
   console.log('PASS: locations start on new pages in one PDF; company, numeric employee and fallback ID ordering.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
