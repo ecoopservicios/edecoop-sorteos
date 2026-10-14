@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   const company = await prisma.enrollmentCompany.upsert({
     where: { formId_name: { formId, name } },
-    update: { isActive: true },
+    update: { isActive: true, deletedAt: null },
     create: { formId, name, isActive: true }
   });
 

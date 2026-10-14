@@ -13,6 +13,7 @@ export async function ensureEnrollmentForm(createdById?: string) {
     orderBy: { createdAt: "desc" },
     include: {
       companies: {
+        where: { deletedAt: null },
         orderBy: { name: "asc" }
       },
       submissions: {
@@ -75,6 +76,7 @@ export async function ensureEnrollmentForm(createdById?: string) {
     where: { id: form.id },
     include: {
       companies: {
+        where: { deletedAt: null },
         orderBy: { name: "asc" }
       },
       submissions: {

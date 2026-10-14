@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { UserRole } from "@prisma/client";
+import { Settings } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { DataUpdateAdmin } from "@/components/data-update-admin";
 import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-settings";
@@ -24,7 +26,7 @@ export default async function DataUpdateAdminPage() {
       orderBy: { createdAt: "desc" },
       take: 100
     }),
-    prisma.enrollmentCompany.findMany({ orderBy: { name: "asc" } })
+    prisma.enrollmentCompany.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } })
   ]);
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:3002";
 
@@ -34,6 +36,19 @@ export default async function DataUpdateAdminPage() {
         <h1 className="text-2xl font-black text-slate-950">Actualizacion de Datos</h1>
         <p className="text-slate-600">Administra el link publico, textos, base de socios y solicitudes recibidas.</p>
       </div>
+      <Link
+        href="/configuracion"
+        className="mb-5 flex min-h-[120px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md sm:max-w-md"
+      >
+        <div>
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-md bg-emerald-50 text-emerald-800">
+            <Settings size={22} />
+          </div>
+          <h2 className="text-lg font-black text-slate-950">Configuracion</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Empresas, usuarios y parametros globales de la plataforma.</p>
+        </div>
+        <span className="mt-4 text-sm font-black text-emerald-800">Abrir configuracion</span>
+      </Link>
       <DataUpdateAdmin
         publicUrl={`${baseUrl}/actualizar-datos`}
         texts={texts}

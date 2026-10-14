@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BarChart3, ClipboardPenLine, Gift, History } from "lucide-react";
+import { BarChart3, ClipboardPenLine, Gift, History, Settings } from "lucide-react";
 import { Prisma } from "@prisma/client";
 
 import { AffiliationEventCreator } from "@/components/affiliation-event-creator";
@@ -33,10 +33,16 @@ const adminSections = [
     title: "Premios otorgados",
     description: "Consulta de codigos, participantes, estados y premios entregados por afiliacion.",
     icon: History
+  },
+  {
+    href: "/configuracion",
+    title: "Configuracion",
+    description: "Empresas, usuarios, bitacora y listas globales usadas por la plataforma.",
+    icon: Settings
   }
 ];
 
-const promoterSections = adminSections;
+const promoterSections = adminSections.filter((section) => section.href !== "/configuracion");
 type AffiliationEventWithType = Prisma.EventEditionGetPayload<{ include: { eventType: true; prizes: true } }>;
 
 export default async function AffiliationProjectPage() {

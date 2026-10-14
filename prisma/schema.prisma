@@ -27,6 +27,8 @@ model User {
   createdEventEditions EventEdition[]
   winnerReports WinnerReport[]
   memberDirectoryEntries MemberDirectory[]
+  souvenirDeliveries SouvenirDelivery[]
+  souvenirMembers SouvenirMember[]
 }
 
 model Prize {
@@ -199,12 +201,14 @@ model EnrollmentCompany {
   isActive                  Boolean            @default(true)
   dataUpdateEnabled         Boolean            @default(false)
   dataUpdateLookupField     MemberLookupField?
+  deletedAt                 DateTime?
   createdAt                 DateTime           @default(now())
   updatedAt                 DateTime           @updatedAt
 
   form EnrollmentForm @relation(fields: [formId], references: [id])
   dataUpdateMembers MemberDirectory[]
   dataUpdateSubmissions MemberDataUpdateSubmission[]
+  souvenirMembers SouvenirMember[]
 
   @@unique([formId, name])
   @@index([formId, isActive])
@@ -414,6 +418,61 @@ model MemberDirectory {
   @@index([employeeNumber])
   @@unique([enrollmentCompanyId, documentId])
   @@unique([enrollmentCompanyId, employeeNumber])
+}
+
+model SouvenirMember {
+  clearedAt DateTime?
+  id String @id @default(cuid())
+  listNumber Int @unique @default(autoincrement())
+  enrollmentCompanyId String
+  firstName String
+  lastName String
+  documentId String? @unique
+  displayDocumentId String?
+  sex String?
+  office String?
+  unit String?
+  employeeNumber String? @unique
+  organizationalDirection String?
+  physicalListPage Int?
+  loadedById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollmentCompany EnrollmentCompany @relation(fields: [enrollmentCompanyId], references: [id])
+  loadedBy User? @relation(fields: [loadedById], references: [id])
+  souvenirDelivery SouvenirDelivery?
+
+  @@unique([enrollmentCompanyId, documentId])
+  @@unique([enrollmentCompanyId, employeeNumber])
+  @@unique([firstName, lastName])
+  @@index([enrollmentCompanyId])
+}
+
+model SouvenirDelivery {
+  id String @id @default(cuid())
+  listNumber Int?
+  souvenirMemberId String? @unique
+  companyId String?
+  firstName String?
+  lastName String?
+  deliveredById String
+  memberName String
+  companyName String
+  documentId String?
+  displayDocumentId String?
+  sex String?
+  office String?
+  unit String?
+  employeeNumber String?
+  organizationalDirection String?
+  physicalListPage Int?
+  deliveredAt DateTime @default(now())
+
+  souvenirMember SouvenirMember? @relation(fields: [souvenirMemberId], references: [id], onDelete: SetNull)
+  deliveredBy User @relation(fields: [deliveredById], references: [id])
+
+  @@index([deliveredAt])
 }
 
 model MemberDataUpdateSubmission {

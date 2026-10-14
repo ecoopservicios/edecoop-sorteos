@@ -8,7 +8,7 @@ export default async function PublicEnrollmentPage({ params }: { params: Promise
     where: { token },
     include: {
       companies: {
-        where: { isActive: true },
+        where: { isActive: true, deletedAt: null },
         orderBy: { name: "asc" }
       }
     }

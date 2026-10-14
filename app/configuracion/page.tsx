@@ -99,7 +99,7 @@ export default async function SettingsPage({
   const [form, settings, companies, zones, eventTypes, users, logs] = await Promise.all([
     ensureEnrollmentForm(user.id),
     getCooperativeSettings(),
-    prisma.enrollmentCompany.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
+    prisma.enrollmentCompany.findMany({ where: { deletedAt: null }, orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.eventZone.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.eventType.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.user.findMany({

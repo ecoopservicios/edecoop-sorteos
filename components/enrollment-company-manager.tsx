@@ -16,6 +16,13 @@ type Company = {
 
 const inputClass = "h-11 w-full rounded-md border border-slate-300 px-3 py-2";
 
+async function companyRequest(url: string, options: RequestInit) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) throw new Error(data?.error || "El servidor no pudo completar la operación. Intente nuevamente.");
+  return data;
+}
+
 function lookupLabel(value: Company["dataUpdateLookupField"]) {
   if (value === "DOCUMENT_ID") return "Cedula";
   if (value === "EMPLOYEE_NUMBER") return "Numero de empleado";
@@ -28,6 +35,7 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState<{ company: Company; warning: string } | null>(null);
   const exportRows = companies.map((company) => ({
     Empresa: company.name,
     Estado: company.isActive ? "Activa" : "Inactiva",
@@ -40,56 +48,43 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     setCreating(true);
-    const response = await fetch("/api/inscripcion-virtual/empresas", {
+    try {
+    await companyRequest("/api/inscripcion-virtual/empresas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ formId, name: form.get("name") })
     });
-    const data = await response.json();
-    setCreating(false);
-
-    if (!response.ok) {
-      notify(data.error || "No se pudo agregar la empresa.", "error");
-      return;
-    }
-
     formElement.reset();
     notify("Empresa agregada.", "success");
     router.refresh();
+    } catch (error) { notify(error instanceof Error ? error.message : "No se pudo agregar la empresa.", "error"); }
+    finally { setCreating(false); }
   }
 
   async function toggle(company: Company) {
     setBusyId(company.id);
-    const response = await fetch(`/api/inscripcion-virtual/empresas/${company.id}`, {
+    try {
+    await companyRequest(`/api/inscripcion-virtual/empresas/${company.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !company.isActive })
     });
-    const data = await response.json();
-    setBusyId("");
-
-    if (!response.ok) {
-      notify(data.error || "No se pudo cambiar el estado.", "error");
-      return;
-    }
-
     notify(company.isActive ? "Empresa inactivada." : "Empresa activada.", "success");
     router.refresh();
+    } catch (error) { notify(error instanceof Error ? error.message : "No se pudo cambiar el estado.", "error"); }
+    finally { setBusyId(""); }
   }
 
-  async function deleteCompany(company: Company) {
+  async function deleteCompany(company: Company, confirm = false) {
     setBusyId(company.id);
-    const response = await fetch(`/api/inscripcion-virtual/empresas/${company.id}`, { method: "DELETE" });
-    const data = await response.json();
-    setBusyId("");
-
-    if (!response.ok) {
-      notify(data.error || "No se pudo eliminar la empresa.", "error");
-      return;
-    }
-
+    try {
+    const result = await companyRequest(`/api/inscripcion-virtual/empresas/${company.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm }) });
+    if (result.requiresConfirmation) { setDeleting({ company, warning: result.warning }); return; }
+    setDeleting(null);
     notify("Empresa eliminada.", "success");
     router.refresh();
+    } catch (error) { notify(error instanceof Error ? error.message : "No se pudo eliminar la empresa.", "error"); }
+    finally { setBusyId(""); }
   }
 
   async function saveDataUpdate(event: FormEvent<HTMLFormElement>) {
@@ -98,7 +93,8 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
 
     const form = new FormData(event.currentTarget);
     setSavingEdit(true);
-    const response = await fetch(`/api/inscripcion-virtual/empresas/${editing.id}`, {
+    try {
+    await companyRequest(`/api/inscripcion-virtual/empresas/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -106,17 +102,11 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
         dataUpdateLookupField: form.get("dataUpdateLookupField")
       })
     });
-    const data = await response.json();
-    setSavingEdit(false);
-
-    if (!response.ok) {
-      notify(data.error || "No se pudo actualizar la empresa.", "error");
-      return;
-    }
-
     notify("Empresa actualizada.", "success");
     setEditing(null);
     router.refresh();
+    } catch (error) { notify(error instanceof Error ? error.message : "No se pudo actualizar la empresa.", "error"); }
+    finally { setSavingEdit(false); }
   }
 
   return (
@@ -194,6 +184,16 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
         </table>
       </div>
 
+      {deleting && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4">
+        <section role="dialog" aria-modal="true" aria-label="Eliminar empresa" className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+          <h3 className="text-lg font-bold">Eliminar empresa</h3>
+          <p className="mt-3 text-sm text-slate-700">{deleting.warning}</p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={!!busyId} onClick={() => setDeleting(null)} className="rounded-md border px-4 py-2">Cancelar</button>
+            <button type="button" disabled={!!busyId} onClick={() => deleteCompany(deleting.company, true)} className="rounded-md bg-red-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{busyId ? "Eliminando..." : "Eliminar de todos modos"}</button>
+          </div>
+        </section>
+      </div>}
       {editing ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4">
           <form onSubmit={saveDataUpdate} className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">

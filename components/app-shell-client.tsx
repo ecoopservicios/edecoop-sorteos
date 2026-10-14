@@ -40,7 +40,13 @@ const promoterItems = [
 const dataUpdateItems = [{ href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw }];
 const adminDataUpdateItems = [...dataUpdateItems, { href: "/configuracion", label: "Configuracion", icon: Settings }];
 
-const globalItems = [{ href: "/configuracion", label: "Configuracion", icon: Settings }];
+const globalItems = [
+  { href: "/afiliacion", label: "Afiliacion", icon: ClipboardPenLine },
+  { href: "/sorteos", label: "Sorteos", icon: Trophy },
+  { href: "/actualizacion-datos", label: "Actualizacion de Datos", icon: RefreshCw },
+  { href: "/entrega-souvenir", label: "Souvenir Aniversario", icon: Gift },
+  { href: "/configuracion", label: "Configuracion", icon: Settings }
+];
 
 const raffleItems = [
   { href: "/sorteos", label: "Inicio Sorteos", icon: Trophy },
@@ -61,13 +67,15 @@ export function AppShellClient({
   children
 }: {
   user: { name: string; role: ShellRole };
-  module?: "affiliation" | "raffles" | "data-update" | "global";
+  module?: "affiliation" | "raffles" | "data-update" | "global" | "souvenir";
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const items =
-    module === "global"
+    module === "souvenir"
+      ? [{ href: "/entrega-souvenir", label: "Souvenir Aniversario", icon: Gift }, ...(user.role === "ADMIN" ? [{ href: "/configuracion", label: "Configuracion", icon: Settings }] : [])]
+      : module === "global"
       ? globalItems
       : module === "data-update"
       ? user.role === "ADMIN"
@@ -80,7 +88,7 @@ export function AppShellClient({
         : user.role === "ADMIN"
           ? adminItems
           : promoterItems;
-  const appTitle = module === "global" ? "Configuracion" : module === "data-update" ? "Actualizacion de datos" : module === "raffles" ? "Sorteos" : "Afiliacion";
+  const appTitle = module === "souvenir" ? "Souvenir Aniversario" : module === "global" ? "Configuracion" : module === "data-update" ? "Actualizacion de datos" : module === "raffles" ? "Sorteos" : "Afiliacion";
 
   useEffect(() => {
     setMobileMenuOpen(false);

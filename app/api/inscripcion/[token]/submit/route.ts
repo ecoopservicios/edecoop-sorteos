@@ -164,7 +164,7 @@ export async function POST(
     if (form.get("acceptsTerms") !== "on") return jsonError("Debe aceptar la solicitud de admisiÃ³n.", 422);
 
     const company = await prisma.enrollmentCompany.findFirst({
-      where: { formId: formConfig.id, name: companyName, isActive: true }
+      where: { formId: formConfig.id, name: companyName, isActive: true, deletedAt: null }
     });
     if (!company) return jsonError("Empresa no disponible.", 422);
     const duplicate = await checkPersonDuplicate({ firstName, lastName, documentId, employeeNumber, phone: mobilePhone, email });

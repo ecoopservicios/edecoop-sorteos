@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, FileSpreadsheet, Gift, History, Trophy, UsersRound } from "lucide-react";
+import { CalendarDays, FileSpreadsheet, Gift, History, Settings, Trophy, UsersRound } from "lucide-react";
 import { UserRole } from "@prisma/client";
 
 import { AppShell } from "@/components/app-shell";
@@ -36,6 +36,12 @@ const raffleSections = [
     title: "Reset de pruebas",
     description: "Limpiar pruebas por evento antes de iniciar una jornada formal.",
     icon: FileSpreadsheet
+  },
+  {
+    href: "/configuracion",
+    title: "Configuracion",
+    description: "Tipos de evento, zonas, usuarios, bitacora y parametros globales de la plataforma.",
+    icon: Settings
   }
 ];
 
