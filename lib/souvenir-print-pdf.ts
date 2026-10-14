@@ -24,7 +24,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const [regular, bold] = await Promise.all(["Vera.ttf", "VeraBd.ttf"].map(name => readFile(path.join(process.cwd(), "public", "fonts", name))));
   const font = await pdf.embedFont(regular, { subset: true });
   const headingFont = await pdf.embedFont(bold, { subset: true });
-  const widths = [25, 130, 165, 100, 80, 80, 188];
+  const widths = [22, 112, 144, 86, 56, 60, 288];
   const labels = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Firma"];
   const size = 7.5, margin = 12, bottom = 8;
   type Cell = { lines: string[]; size: number };
@@ -42,7 +42,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const tableTop = 596 - headerHeight;
   const columnHeight = 14;
   const capacity = tableTop - columnHeight - 18;
-  const rowHeight = Math.min(15.7, capacity / 35);
+  const rowHeight = Math.min(18.3, capacity / 30);
   const chunks: Row[][] = [];
   let chunk: Row[] = [], used = 0;
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
@@ -53,7 +53,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
     });
     const height = Math.max(rowHeight, ...cells.map(cell => cell.lines.length * (cell.size + 0.5) + 2));
     if (height > capacity) throw new Error("El socio " + member.listNumber + " tiene un dato demasiado extenso para imprimir.");
-    if (chunk.length && (chunk.length >= 35 || used + height > capacity + 0.01)) { chunks.push(chunk); chunk = []; used = 0; }
+    if (chunk.length && (chunk.length >= 30 || used + height > capacity + 0.01)) { chunks.push(chunk); chunk = []; used = 0; }
     chunk.push({ cells, height }); used += height;
   }
   if (chunk.length) chunks.push(chunk);
@@ -76,7 +76,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
       });
       y -= height;
     }
-    cellRow(labels.map(label => ({ lines: [label], size: 7 })), columnHeight, true);
+    cellRow(labels.map((label, i) => ({ lines: [label], size: Math.min(7, (widths[i] - 6) / Math.max(1, headingFont.widthOfTextAtSize(label, 1))) })), columnHeight, true);
     rows.forEach(row => cellRow(row.cells, row.height));
     if (showPageNumbers) page.drawText(`Página ${pageIndex + 1} de ${chunks.length}`, { x: 710, y: bottom, size: 6, font });
   });
