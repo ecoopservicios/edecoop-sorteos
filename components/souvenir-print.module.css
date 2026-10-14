@@ -10,7 +10,7 @@
 .table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; line-height: 1.1; }
 .table th, .table td { border: 1px solid #333; padding: 1px 3px; overflow-wrap: anywhere; vertical-align: middle; }
 .table th { background: #eee; text-align: left; font-weight: 700; }
-.table td { height: 18px; }
+.table td { height: 20px; }
 .signature { min-width: 0; }
 .footer { margin-top: 4px; font-size: 8px; text-align: right; }
 @media screen and (max-width: 767px) {
@@ -37,7 +37,7 @@
   .heading h2 { font-size: 7pt; }
   .table thead { display: table-header-group; }
   .table tr { break-inside: avoid; page-break-inside: avoid; }
-  .table td { height: 13.5pt; padding: 0.4pt 2pt; }
+  .table td { height: 15.4pt; padding: 0.4pt 2pt; }
   .table th { padding: 1pt 2pt; }
   .footer { font-size: 6pt; margin-top: 2pt; }
 }

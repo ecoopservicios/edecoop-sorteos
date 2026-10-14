@@ -42,7 +42,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const tableTop = 596 - headerHeight;
   const columnHeight = 14;
   const capacity = tableTop - columnHeight - 18;
-  const rowHeight = Math.min(13.75, capacity / 40);
+  const rowHeight = Math.min(15.7, capacity / 35);
   const chunks: Row[][] = [];
   let chunk: Row[] = [], used = 0;
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
@@ -53,7 +53,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
     });
     const height = Math.max(rowHeight, ...cells.map(cell => cell.lines.length * (cell.size + 0.5) + 2));
     if (height > capacity) throw new Error("El socio " + member.listNumber + " tiene un dato demasiado extenso para imprimir.");
-    if (chunk.length && (chunk.length >= 40 || used + height > capacity + 0.01)) { chunks.push(chunk); chunk = []; used = 0; }
+    if (chunk.length && (chunk.length >= 35 || used + height > capacity + 0.01)) { chunks.push(chunk); chunk = []; used = 0; }
     chunk.push({ cells, height }); used += height;
   }
   if (chunk.length) chunks.push(chunk);

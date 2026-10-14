@@ -58,7 +58,7 @@ async function main() {
   const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 1, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
   const compactPdf = await createSouvenirLocationPdf(compactRows[0].approximateLocation, compactRows);
   assert.equal((await PDFDocument.load(compactPdf)).getPageCount(), 3);
-  assert.deepEqual(souvenirPrintSheets(compactRows).map(s => s.members.length), [40, 40, 21]);
+  assert.deepEqual(souvenirPrintSheets(compactRows).map(s => s.members.length), [35, 35, 31]);
   fs.writeFileSync('outputs/souvenir-50-rows-test.pdf', compactPdf);
   console.log('PASS: locations start on new pages in one PDF; company, numeric employee and fallback ID ordering.');
 }
