@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');
 const ts = require('typescript');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, decodePDFRawStream } = require('pdf-lib');
 
 function load(relative) {
   const filename = path.resolve(relative), loaded = new Module(filename, module);
@@ -57,7 +57,11 @@ async function main() {
   fs.writeFileSync('outputs/souvenir-combined-test.pdf', mergedBytes);
   const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 1, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
   const compactPdf = await createSouvenirLocationPdf(compactRows[0].approximateLocation, compactRows);
-  assert.equal((await PDFDocument.load(compactPdf)).getPageCount(), 4);
+  const compactDocument = await PDFDocument.load(compactPdf);
+  assert.equal(compactDocument.getPageCount(), 4);
+  const firstPageContent = compactDocument.getPage(0).node.Contents().asArray().map(ref => Buffer.from(decodePDFRawStream(compactDocument.context.lookup(ref)).decode()).toString()).join(' ');
+  assert.equal((firstPageContent.match(/\nS\n/g) || []).length / 7, 30);
+  assert(firstPageContent.includes(' 9 Tf'), 'Ordinary body text should use the larger 9pt font.');
   assert.deepEqual(souvenirPrintSheets(compactRows).map(s => s.members.length), [30, 30, 30, 11]);
   fs.writeFileSync('outputs/souvenir-50-rows-test.pdf', compactPdf);
   console.log('PASS: locations start on new pages in one PDF; company, numeric employee and fallback ID ordering.');

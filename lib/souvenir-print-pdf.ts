@@ -11,7 +11,11 @@ function wrap(text: string, font: PDFFont, width: number, size: number) {
   const lines: string[] = [];
   let line = "";
   for (const character of text.replace(/[\r\n\t]/g, " ")) {
-    if (line && font.widthOfTextAtSize(line + character, size) > width) { lines.push(line); line = ""; }
+    if (line && font.widthOfTextAtSize(line + character, size) > width) {
+      const space = line.lastIndexOf(" ");
+      if (space > 0) { lines.push(line.slice(0, space)); line = line.slice(space + 1); }
+      else { lines.push(line); line = ""; }
+    }
     line += character;
   }
   lines.push(line);
@@ -26,14 +30,14 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const headingFont = await pdf.embedFont(bold, { subset: true });
   const widths = [22, 112, 144, 86, 56, 60, 288];
   const labels = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Firma"];
-  const size = 7.5, margin = 12, bottom = 8;
+  const size = 9, margin = 12, bottom = 8;
   type Cell = { lines: string[]; size: number };
   type Row = { cells: Cell[]; height: number };
   const header = [
-    { text: "Entrega de Souvenir Aniversario · EDECOOP", width: 210, maxSize: 8 },
-    { text: "Empresa: " + (members[0]?.companyName || ""), width: 95, maxSize: 7 },
-    { text: "Ubicación: " + location, width: 385, maxSize: 7 },
-    { text: members.length + " socios", width: 78, maxSize: 7 }
+    { text: "Entrega de Souvenir Aniversario · EDECOOP", width: 210, maxSize: 9 },
+    { text: "Empresa: " + (members[0]?.companyName || ""), width: 95, maxSize: 8 },
+    { text: "Ubicación: " + location, width: 385, maxSize: 8 },
+    { text: members.length + " socios", width: 78, maxSize: 8 }
   ].map(item => {
     const textSize = Math.max(6, Math.min(item.maxSize, (item.width - 6) / Math.max(1, headingFont.widthOfTextAtSize(item.text, 1))));
     return { ...item, size: textSize, lines: wrap(item.text, headingFont, item.width - 6, textSize) };
@@ -48,6 +52,13 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
     const values = [String(member.listNumber), member.firstName, member.lastName, member.displayDocumentId || "-", member.employeeNumber || "-", member.companyName, ""];
     const cells = values.map((value, i) => {
+      // Names can use two lines instead of shrinking immediately to a tiny font.
+      if (i === 1 || i === 2 || i === 5) {
+        for (let candidate = size; candidate >= 7.5; candidate -= 0.5) {
+          const lines = wrap(value, font, widths[i] - 6, candidate);
+          if (lines.length * (candidate + 0.5) + 2 <= rowHeight) return { lines, size: candidate };
+        }
+      }
       const cellSize = Math.max(6, Math.min(size, (widths[i] - 6) / Math.max(1, font.widthOfTextAtSize(value, 1))));
       return { lines: wrap(value, font, widths[i] - 6, cellSize), size: cellSize };
     });
@@ -76,7 +87,7 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
       });
       y -= height;
     }
-    cellRow(labels.map((label, i) => ({ lines: [label], size: Math.min(7, (widths[i] - 6) / Math.max(1, headingFont.widthOfTextAtSize(label, 1))) })), columnHeight, true);
+    cellRow(labels.map((label, i) => ({ lines: [label], size: Math.min(8, (widths[i] - 6) / Math.max(1, headingFont.widthOfTextAtSize(label, 1))) })), columnHeight, true);
     rows.forEach(row => cellRow(row.cells, row.height));
     if (showPageNumbers) page.drawText(`Página ${pageIndex + 1} de ${chunks.length}`, { x: 710, y: bottom, size: 6, font });
   });
