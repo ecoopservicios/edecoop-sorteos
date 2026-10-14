@@ -6,7 +6,7 @@ export type SouvenirPrintMember = {
   approximateLocation: string | null;
 };
 
-export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 50) {
+export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 40) {
   const groups = new Map<string, { location: string; members: SouvenirPrintMember[] }>();
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
     const key = member.companyId + ":" + souvenirLocationKey(member.approximateLocation);
