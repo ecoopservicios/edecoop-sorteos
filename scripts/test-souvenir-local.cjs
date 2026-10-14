@@ -29,6 +29,18 @@ async function main() {
   const cookieValue = `${body}.${signature}`;
   const headers = { cookie: `edecoop_session=${cookieValue}`, 'Content-Type': 'application/json' };
   const api = (url, opts = {}) => fetch(base + url, { ...opts, headers });
+  const companySettingsUrl = `/api/inscripcion-virtual/empresas/${company.id}`;
+  assert.equal((await api(companySettingsUrl, { method: 'PATCH', body: JSON.stringify({ dataUpdateEnabled: false, dataUpdateLookupField: 'EMPLOYEE_NUMBER' }) })).status, 200);
+  let savedSettings = await db.enrollmentCompany.findUnique({ where: { id: company.id } });
+  assert.equal(savedSettings.dataUpdateEnabled, false);
+  assert.equal(savedSettings.dataUpdateLookupField, 'EMPLOYEE_NUMBER');
+  assert.equal((await api(`/api/souvenir?companyId=${company.id}&lookup=99991`)).status, 200);
+  assert.equal((await api(companySettingsUrl, { method: 'PATCH', body: JSON.stringify({ dataUpdateEnabled: true }) })).status, 200);
+  savedSettings = await db.enrollmentCompany.findUnique({ where: { id: company.id } });
+  assert.equal(savedSettings.dataUpdateLookupField, 'EMPLOYEE_NUMBER');
+  assert.equal((await api(companySettingsUrl, { method: 'PATCH', body: JSON.stringify({ dataUpdateLookupField: 'DOCUMENT_ID' }) })).status, 200);
+  assert.equal((await db.enrollmentCompany.findUnique({ where: { id: company.id } })).dataUpdateEnabled, true);
+  assert.equal((await api(companySettingsUrl, { method: 'PATCH', body: JSON.stringify({ dataUpdateEnabled: false, dataUpdateLookupField: 'EMPLOYEE_NUMBER' }) })).status, 200);
   const disposableCompany = await db.enrollmentCompany.create({ data: { formId: form.id, name: `ELIMINAR ${stamp}` } });
   companyIds.push(disposableCompany.id);
   const disposableUrl = `/api/inscripcion-virtual/empresas/${disposableCompany.id}`;

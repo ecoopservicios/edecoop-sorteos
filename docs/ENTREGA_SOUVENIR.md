@@ -2,6 +2,8 @@
 
 Proyecto local independiente de los sorteos, afiliaciones y actualización de datos. Un socio del listado propio `SouvenirMember` puede recibir un souvenir fijo una sola vez. Solo comparte la configuración de empresas y su tipo de identificación.
 
+El cotejo `dataUpdateEnabled` solo habilita Actualización de Datos. Desmarcarlo no borra `dataUpdateLookupField` ni oculta la empresa en otros proyectos. El dato de consulta es una configuración global independiente; las empresas deben conservar estado activo y una identificación configurada para consultar el listado de souvenirs.
+
 ## Flujo
 
 1. Al entrar se muestran dos opciones: **Cargar listado de socios** y **Entregar Souvenir**. La primera abre carga y plantilla, sin seleccionar empresa. El Excel incluye empresa en cada fila y puede contener varias empresas.

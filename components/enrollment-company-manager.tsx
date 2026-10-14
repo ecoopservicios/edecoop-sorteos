@@ -40,7 +40,7 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
     Empresa: company.name,
     Estado: company.isActive ? "Activa" : "Inactiva",
     "Actualizacion de datos": company.dataUpdateEnabled ? "Habilitada" : "No habilitada",
-    "Dato de consulta": company.dataUpdateEnabled ? lookupLabel(company.dataUpdateLookupField) : "No habilitado"
+    "Dato de consulta": lookupLabel(company.dataUpdateLookupField)
   }));
 
   async function create(event: FormEvent<HTMLFormElement>) {
@@ -139,7 +139,7 @@ export function EnrollmentCompanyManager({ formId, companies }: { formId: string
               <tr key={company.id} className="border-t border-slate-100">
                 <td className="px-3 py-2 font-semibold">{company.name}</td>
                 <td className="px-3 py-2">{company.isActive ? "Activa" : "Inactiva"}</td>
-                <td className="px-3 py-2">{company.dataUpdateEnabled ? lookupLabel(company.dataUpdateLookupField) : "No habilitado"}</td>
+                <td className="px-3 py-2">{lookupLabel(company.dataUpdateLookupField)}</td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     <button

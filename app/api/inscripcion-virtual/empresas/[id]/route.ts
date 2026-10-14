@@ -22,12 +22,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("isActive" in body) data.isActive = Boolean(body.isActive);
 
   if ("dataUpdateEnabled" in body || "dataUpdateLookupField" in body) {
-    const enabled = Boolean(body.dataUpdateEnabled);
+    const enabled = "dataUpdateEnabled" in body ? Boolean(body.dataUpdateEnabled) : current.dataUpdateEnabled;
+    if ("dataUpdateLookupField" in body && ![MemberLookupField.EMPLOYEE_NUMBER, MemberLookupField.DOCUMENT_ID].includes(body.dataUpdateLookupField)) {
+      return jsonError("Seleccione un dato de consulta válido.", 422);
+    }
     const lookupField =
-      body.dataUpdateLookupField === MemberLookupField.EMPLOYEE_NUMBER ? MemberLookupField.EMPLOYEE_NUMBER : MemberLookupField.DOCUMENT_ID;
+      "dataUpdateLookupField" in body ? body.dataUpdateLookupField as MemberLookupField : current.dataUpdateLookupField;
 
     data.dataUpdateEnabled = enabled;
-    data.dataUpdateLookupField = enabled ? lookupField : null;
+    data.dataUpdateLookupField = lookupField;
   }
 
   if (Object.keys(data).length === 0) return jsonError("No hay cambios para guardar.", 422);
