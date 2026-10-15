@@ -13,6 +13,7 @@ import { souvenirLocationLabel } from "@/lib/souvenir-order";
 import type { CompanyReview } from "@/lib/souvenir-companies";
 import { MultiSelectFilter } from "@/components/company-multi-filter";
 import { souvenirOfficeLabel, souvenirOfficeKey, SOUVENIR_STATUS_OPTIONS } from "@/lib/souvenir-filters";
+import { useDataRefresh } from "@/components/data-refresh";
 
 type Company = { id: string; name: string; dataUpdateLookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" | null };
 type Member = {
@@ -85,6 +86,7 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
   const [companyMappings, setCompanyMappings] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const restoredCompanyFor = useRef<string | null>(null);
   const company = companies.find(c => c.id === companyId);
   const isDocument = company?.dataUpdateLookupField === "DOCUMENT_ID";
   const label = isDocument ? "Cédula" : "Número de empleado";
@@ -93,6 +95,8 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
   const delivered = visible.filter(m => m.souvenirDelivery).length;
 
   useEffect(() => {
+    if (restoredCompanyFor.current === userId) return;
+    restoredCompanyFor.current = userId;
     try {
       const saved = sessionStorage.getItem(`souvenir-company:${userId}`);
       if (saved && companies.some(c => c.id === saved)) {
@@ -121,6 +125,21 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [companyId, refresh, deliveryMode]);
+  useDataRefresh(async () => {
+    if (busy || searching || applying) return;
+    if (uploadModal && isAdmin) {
+      const data = await readResponse(await fetch("/api/souvenir/carga", { cache: "no-store" }));
+      setExistingReport(data.report); setNumberedMembers(data.members || []);
+    }
+    if (companyId && deliveryMode) {
+      const data = await readResponse(await fetch(`/api/souvenir?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store" }));
+      setMembers(data.members);
+      if (member) {
+        const updated = data.members.find((item: Member) => item.id === member.id);
+        if (updated) setMember(updated);
+      }
+    }
+  });
 
   function resetSearch() {
     resetCollector();

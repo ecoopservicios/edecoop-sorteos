@@ -9,6 +9,7 @@ import { notify } from "@/lib/toast";
 import { SouvenirTable } from "@/components/souvenir-table";
 import { CompanyMultiFilter, MultiSelectFilter } from "@/components/company-multi-filter";
 import { matchesSouvenirFilters, souvenirOfficeLabel, souvenirOfficeKey, SOUVENIR_STATUS_OPTIONS } from "@/lib/souvenir-filters";
+import { useDataRefresh } from "@/components/data-refresh";
 
 type Row = {
   id: string; listNumber: number | null; companyId: string; companyName: string; firstName: string; lastName: string; fullName: string;
@@ -57,6 +58,12 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [view, refresh]);
+  useDataRefresh(async () => {
+    const response = await fetch(`/api/souvenir/listado?view=${view}`, { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data?.error || "No se pudo actualizar el listado.");
+    setRows(data.members.sort(compareSouvenirMembers)); setError("");
+  });
   const companies = [...new Map(rows.map(row => [row.companyId, row.companyName])).entries()].sort((a, b) => compareSouvenirCompanies(a[1], b[1]));
   const query = key(search);
   const companyRows = rows.filter(row => !company.length || company.includes(row.companyId));

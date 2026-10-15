@@ -10,6 +10,7 @@ import styles from "@/components/souvenir-print.module.css";
 import { CompanyMultiFilter, MultiSelectFilter } from "@/components/company-multi-filter";
 import { matchesSouvenirFilters, souvenirOfficeLabel, souvenirOfficeKey, SOUVENIR_STATUS_OPTIONS } from "@/lib/souvenir-filters";
 import { souvenirLocationKey } from "@/lib/souvenir-order";
+import { DataRefreshProvider, RefreshDataButton } from "@/components/data-refresh";
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50";
 const columns = SOUVENIR_PRINT_COLUMNS;
@@ -47,9 +48,9 @@ export function SouvenirPrint({ members }: { members: SouvenirPrintMember[] }) {
     } catch (error) { notify(error instanceof Error ? error.message : "Error al descargar.", "error"); }
     finally { setDownloading(false); }
   }
-  return <main className={styles.root}>
+  return <DataRefreshProvider><main className={styles.root}>
     <div className={styles.controls + " mx-auto mb-6 max-w-5xl space-y-4 p-4 sm:p-6"}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">Imprimir listado · Souvenir Aniversario</h1><Link href="/entrega-souvenir" className={button}><ArrowLeft size={18} />Volver al inicio</Link></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">Imprimir listado · Souvenir Aniversario</h1><div className="flex flex-wrap gap-2"><RefreshDataButton /><Link href="/entrega-souvenir" className={button}><ArrowLeft size={18} />Volver al inicio</Link></div></div>
       <div className="grid gap-4 sm:grid-cols-2"><CompanyMultiFilter options={companies} value={company} onChange={value => { setCompany(value); setLocation([]); setOffice([]); }} /><MultiSelectFilter label="Oficina" allLabel="Todas las oficinas" options={offices} value={office} onChange={value => { setOffice(value); setLocation([]); }} /><MultiSelectFilter label="Ubicación aproximada" allLabel="Todas las ubicaciones" options={locations} value={location} onChange={setLocation} /><MultiSelectFilter label="Estado" allLabel="Todos los estados" options={SOUVENIR_STATUS_OPTIONS} value={state} onChange={setState} /></div>
       <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">{new Set(sheets.map(s => s.location)).size} ubicaciones · {total} socios</p><div className="flex flex-wrap gap-2"><button type="button" disabled={!sheets.length || downloading} className={button + " border-emerald-700 bg-emerald-700 text-white"} onClick={() => void download()}><Download size={18} />{downloading ? "Generando PDF…" : "Descargar PDF"}</button><button type="button" disabled={!sheets.length} className={button} onClick={() => window.print()}><Printer size={18} />Imprimir listado</button></div></div>
     </div>
@@ -59,5 +60,5 @@ export function SouvenirPrint({ members }: { members: SouvenirPrintMember[] }) {
       <table className={styles.table}><colgroup>{SOUVENIR_PRINT_WIDTHS.map((width, i) => <col key={i} style={{ width: `${width / 768 * 100}%` }} />)}</colgroup><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{sheet.members.map(m => <tr key={m.id}>{[m.listNumber, m.firstName, m.lastName, m.displayDocumentId || "-", m.employeeNumber || "-", m.companyName, ...souvenirPrintIndicators(m), ""].map((value, index) => <td key={index} data-label={columns[index]} className={index === columns.length - 1 ? styles.signature : undefined}>{value}</td>)}</tr>)}</tbody></table>
       <footer className={styles.footer}>Página {index + 1} de {sheets.length}</footer>
     </section>)}
-  </main>;
+  </main></DataRefreshProvider>;
 }

@@ -17,6 +17,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { LogoutButton } from "@/components/logout-button";
+import { DataRefreshProvider, RefreshDataButton } from "@/components/data-refresh";
 
 type ShellRole = "ADMIN" | "PROMOTER";
 
@@ -102,7 +103,7 @@ export function AppShellClient({
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+    <DataRefreshProvider><div className="min-h-screen w-full overflow-x-hidden">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:px-8">
           <div className="min-w-0">
@@ -222,7 +223,7 @@ export function AppShellClient({
         </div>
       </div>
 
-      <main className="mx-auto min-w-0 max-w-[1680px] px-3 py-4 sm:px-5 sm:py-5 lg:px-8">{children}</main>
-    </div>
+      <main className="mx-auto min-w-0 max-w-[1680px] px-3 py-4 sm:px-5 sm:py-5 lg:px-8"><div className="mb-3 flex justify-end print:hidden"><RefreshDataButton /></div>{children}</main>
+    </div></DataRefreshProvider>
   );
 }
