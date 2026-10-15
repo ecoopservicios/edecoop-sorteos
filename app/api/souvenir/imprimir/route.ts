@@ -5,6 +5,7 @@ import { jsonError } from "@/lib/api";
 import { createSouvenirListPdf } from "@/lib/souvenir-print-pdf";
 import { souvenirLocationKey, souvenirLocationLabel } from "@/lib/souvenir-order";
 import type { SouvenirPrintMember } from "@/lib/souvenir-print";
+import { matchesSouvenirFilters, souvenirOfficeKey } from "@/lib/souvenir-filters";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,12 +15,13 @@ export async function GET(request: NextRequest) {
   if (!user || user.mustChangePassword) return jsonError("Inicie sesión nuevamente.", 401);
   try {
     const companyIds = [...new Set(request.nextUrl.searchParams.getAll("companyId").filter(Boolean))];
-    const location = request.nextUrl.searchParams.get("location") || "";
+    const filters = { companies: companyIds, offices: request.nextUrl.searchParams.getAll("office").filter(Boolean).map(souvenirOfficeKey), locations: request.nextUrl.searchParams.getAll("location").filter(Boolean).map(souvenirLocationKey), states: request.nextUrl.searchParams.getAll("state").filter(value => value && value !== "ALL") };
+    if (filters.states.some(value => !["PENDING", "DELIVERED"].includes(value))) return jsonError("Estado de entrega no válido.", 422);
     const records = await prisma.souvenirMember.findMany({ where: { clearedAt: null, ...(companyIds.length ? { enrollmentCompanyId: { in: companyIds } } : {}) }, include: { enrollmentCompany: { select: { name: true } }, souvenirDelivery: { select: { collectedByOther: true } } }, orderBy: { listNumber: "asc" } });
     const groups = new Map<string, { location: string; members: SouvenirPrintMember[] }>();
     for (const member of records) {
       const key = `${member.enrollmentCompanyId}:${souvenirLocationKey(member.approximateLocation)}`;
-      if (location && souvenirLocationKey(member.approximateLocation) !== souvenirLocationKey(location)) continue;
+      if (!matchesSouvenirFilters({ ...member, companyId: member.enrollmentCompanyId, delivered: !!member.souvenirDelivery }, filters)) continue;
       const group = groups.get(key) || { location: souvenirLocationLabel(member.approximateLocation), members: [] };
       group.members.push({ id: member.id, listNumber: member.listNumber, firstName: member.firstName, lastName: member.lastName, displayDocumentId: member.displayDocumentId, employeeNumber: member.employeeNumber, office: member.office, unit: member.unit, approximateLocation: member.approximateLocation, companyId: member.enrollmentCompanyId, companyName: member.enrollmentCompany.name, delivered: !!member.souvenirDelivery, collectedByOther: member.souvenirDelivery?.collectedByOther ?? false });
       groups.set(key, group);

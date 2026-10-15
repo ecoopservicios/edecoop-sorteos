@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { selectFilter } = require('./test-filter-helper.cjs');
 const crypto = require('node:crypto');
 const { loadEnvConfig } = require('@next/env');
 loadEnvConfig(process.cwd());
@@ -317,7 +318,7 @@ async function main() {
   await page.getByRole('button', { name: 'Empresa', exact: true }).click();
   await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Ubicación aproximada', { exact: true }).selectOption('SIN UBICACIÓN ASIGNADA');
+  await selectFilter(page, 'Ubicación aproximada', ['SIN UBICACIÓN ASIGNADA']);
   assert.equal(await page.getByRole('table').count(), 1);
   assert.equal(await page.locator('table tbody tr').count(), 12);
   assert.equal(await page.getByRole('table').first().getByRole('columnheader', { name: 'Firma', exact: true, includeHidden: true }).count(), 1);
@@ -401,11 +402,11 @@ async function main() {
   await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('button', { name: 'Limpiar listado', exact: true }).count(), 0);
-  await page.getByLabel('Estado', { exact: true }).selectOption('DELIVERED');
+  await selectFilter(page, 'Estado', ['DELIVERED']);
   assert((await page.getByRole('table').nth(1).innerText()).includes('Entregado'));
   await page.screenshot({ path: 'outputs/souvenir-state-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 850 });
-  await page.getByLabel('Estado', { exact: true }).selectOption('ALL');
+  await selectFilter(page, 'Estado', []);
   await page.screenshot({ path: 'outputs/souvenir-state-desktop.png', fullPage: true });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert(await page.evaluate(() => [...document.querySelectorAll('table')].every(table => table.scrollWidth <= table.clientWidth + 2)));
