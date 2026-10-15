@@ -5,13 +5,13 @@ import Link from "next/link";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { compareSouvenirCompanies } from "@/lib/souvenir-order";
 import { notify } from "@/lib/toast";
-import { souvenirPrintSheets, type SouvenirPrintMember } from "@/lib/souvenir-print";
+import { souvenirPrintSheets, souvenirPrintIndicators, SOUVENIR_PRINT_COLUMNS, SOUVENIR_PRINT_WIDTHS, type SouvenirPrintMember } from "@/lib/souvenir-print";
 import styles from "@/components/souvenir-print.module.css";
 import { CompanyMultiFilter } from "@/components/company-multi-filter";
 
 const field = "mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3";
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50";
-const columns = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Firma"];
+const columns = SOUVENIR_PRINT_COLUMNS;
 
 export function SouvenirPrint({ members }: { members: SouvenirPrintMember[] }) {
   const [company, setCompany] = useState<string[]>([]);
@@ -48,7 +48,7 @@ export function SouvenirPrint({ members }: { members: SouvenirPrintMember[] }) {
     {!sheets.length && <p className={styles.controls + " p-6 text-center text-slate-500"}>No hay socios para imprimir.</p>}
     {sheets.map((sheet, index) => <section key={`${sheet.companyId}:${sheet.location}:${sheet.page}`} className={styles.sheet} aria-label={`Ubicación aproximada ${sheet.location}, página ${index + 1}`}>
       <header className={styles.heading}><h2>Entrega de Souvenir Aniversario · EDECOOP</h2><strong>Empresa: {sheet.companyName}</strong><strong>Ubicación: {sheet.location}</strong><span>{sheet.total} socios</span></header>
-      <table className={styles.table}><colgroup>{[32, 108, 138, 86, 56, 60, 288].map((width, i) => <col key={i} style={{ width: `${width / 768 * 100}%` }} />)}</colgroup><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{sheet.members.map(m => <tr key={m.id}>{[m.listNumber, m.firstName, m.lastName, m.displayDocumentId || "-", m.employeeNumber || "-", m.companyName, ""].map((value, index) => <td key={index} data-label={columns[index]} className={index === 6 ? styles.signature : undefined}>{value}</td>)}</tr>)}</tbody></table>
+      <table className={styles.table}><colgroup>{SOUVENIR_PRINT_WIDTHS.map((width, i) => <col key={i} style={{ width: `${width / 768 * 100}%` }} />)}</colgroup><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{sheet.members.map(m => <tr key={m.id}>{[m.listNumber, m.firstName, m.lastName, m.displayDocumentId || "-", m.employeeNumber || "-", m.companyName, ...souvenirPrintIndicators(m), ""].map((value, index) => <td key={index} data-label={columns[index]} className={index === columns.length - 1 ? styles.signature : undefined}>{value}</td>)}</tr>)}</tbody></table>
       <footer className={styles.footer}>Página {index + 1} de {sheets.length}</footer>
     </section>)}
   </main>;

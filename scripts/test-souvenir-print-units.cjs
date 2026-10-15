@@ -16,7 +16,12 @@ function load(relative) {
 
 async function main() {
   const rows = Array.from({ length: 25 }, (_, i) => ({ id: String(i), listNumber: 125 + i, firstName: 'ANA', lastName: 'PÉREZ ' + i, displayDocumentId: '***-*******-*', documentId: null, employeeNumber: String(12000 + i), companyId: 'test', companyName: 'EDESUR', office: 'Sector Baní', unit: i % 2 ? 'COMERCIAL' : 'OPERACIONES', approximateLocation: i < 22 ? 'Sector Baní' : i < 24 ? 'Oficina Central' : null }));
-  const { souvenirPrintSheets } = load('lib/souvenir-print.ts');
+  const { souvenirPrintSheets, souvenirPrintIndicators, SOUVENIR_PRINT_WIDTHS } = load('lib/souvenir-print.ts');
+  assert.equal(SOUVENIR_PRINT_WIDTHS.reduce((sum, width) => sum + width, 0), 768);
+  assert.deepEqual(souvenirPrintIndicators({ delivered: false, collectedByOther: false }), ['', '']);
+  assert.deepEqual(souvenirPrintIndicators({ delivered: false, collectedByOther: true }), ['', '']);
+  assert.deepEqual(souvenirPrintIndicators({ delivered: true, collectedByOther: false }), ['Sí', '']);
+  assert.deepEqual(souvenirPrintIndicators({ delivered: true, collectedByOther: true }), ['', 'Sí']);
   const sheets = souvenirPrintSheets(rows);
   assert(sheets.every(sheet => new Set(sheet.members.map(m => m.approximateLocation)).size === 1));
   assert.deepEqual(sheets.flatMap(sheet => sheet.members.map(m => m.listNumber)), rows.map(m => m.listNumber));
@@ -55,12 +60,12 @@ async function main() {
   const merged = await PDFDocument.load(mergedBytes);
   assert.equal(merged.getPageCount(), 4);
   fs.writeFileSync('outputs/souvenir-combined-test.pdf', mergedBytes);
-  const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 2100, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO' }));
+  const compactRows = Array.from({ length: 101 }, (_, i) => ({ ...rows[0], id: 'compact-' + i, listNumber: i + 2100, employeeNumber: String(300 + i), firstName: 'FRANCISCO ALBERTO', lastName: 'DE LOS SANTOS RODRIGUEZ GARCIA', approximateLocation: 'SANTO DOMINGO - TORRE SERRANO', delivered: i % 3 !== 0, collectedByOther: i % 3 === 2 }));
   const compactPdf = await createSouvenirLocationPdf(compactRows[0].approximateLocation, compactRows);
   const compactDocument = await PDFDocument.load(compactPdf);
   assert.equal(compactDocument.getPageCount(), 4);
   const firstPageContent = compactDocument.getPage(0).node.Contents().asArray().map(ref => Buffer.from(decodePDFRawStream(compactDocument.context.lookup(ref)).decode()).toString()).join(' ');
-  assert.equal((firstPageContent.match(/\nS\n/g) || []).length / 7, 30);
+  assert.equal((firstPageContent.match(/\nS\n/g) || []).length / SOUVENIR_PRINT_WIDTHS.length, 30);
   assert(firstPageContent.includes(' 9 Tf'), 'Ordinary body text should use the larger 9pt font.');
   assert.deepEqual(souvenirPrintSheets(compactRows).map(s => s.members.length), [30, 30, 30, 11]);
   fs.writeFileSync('outputs/souvenir-50-rows-test.pdf', compactPdf);

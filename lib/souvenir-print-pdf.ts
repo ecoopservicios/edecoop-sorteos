@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, rgb, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import type { SouvenirPrintMember } from "@/lib/souvenir-print";
+import { SOUVENIR_PRINT_COLUMNS, SOUVENIR_PRINT_WIDTHS, souvenirPrintIndicators, type SouvenirPrintMember } from "@/lib/souvenir-print";
 
 export const officeLabel = (office: string | null) => office?.trim().replace(/\s+/g, " ") || "SIN OFICINA ASIGNADA";
 export const officeKey = (office: string | null) => officeLabel(office).normalize("NFC").toLocaleUpperCase("es");
@@ -28,8 +28,8 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   const [regular, bold] = await Promise.all(["Vera.ttf", "VeraBd.ttf"].map(name => readFile(path.join(process.cwd(), "public", "fonts", name))));
   const font = await pdf.embedFont(regular, { subset: true });
   const headingFont = await pdf.embedFont(bold, { subset: true });
-  const widths = [32, 108, 138, 86, 56, 60, 288];
-  const labels = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Firma"];
+  const widths = SOUVENIR_PRINT_WIDTHS;
+  const labels = SOUVENIR_PRINT_COLUMNS;
   const size = 9, margin = 12, bottom = 8;
   type Cell = { lines: string[]; size: number };
   type Row = { cells: Cell[]; height: number };
@@ -44,13 +44,13 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
   });
   const headerHeight = Math.max(12, ...header.map(item => item.lines.length * (item.size + 1) + 3));
   const tableTop = 596 - headerHeight;
-  const columnHeight = 14;
+  const columnHeight = 22;
   const capacity = tableTop - columnHeight - 18;
   const rowHeight = Math.min(18.3, capacity / 30);
   const chunks: Row[][] = [];
   let chunk: Row[] = [], used = 0;
   for (const member of [...members].sort((a, b) => a.listNumber - b.listNumber)) {
-    const values = [String(member.listNumber), member.firstName, member.lastName, member.displayDocumentId || "-", member.employeeNumber || "-", member.companyName, ""];
+    const values = [String(member.listNumber), member.firstName, member.lastName, member.displayDocumentId || "-", member.employeeNumber || "-", member.companyName, ...souvenirPrintIndicators(member), ""];
     const cells = values.map((value, i) => {
       // Names can use two lines instead of shrinking immediately to a tiny font.
       if (i === 1 || i === 2 || i === 5) {
@@ -82,12 +82,13 @@ export async function createSouvenirLocationPdf(location: string, members: Souve
         page.drawRectangle({ x, y: y - height, width: widths[i], height, borderWidth: 0.35, borderColor: rgb(0.25, 0.25, 0.25), ...(header ? { color: rgb(0.93, 0.95, 0.94) } : {}) });
         const leading = cell.size + 0.5;
         const firstBaseline = y - (height - cell.lines.length * leading) / 2 - cell.size;
-        cell.lines.forEach((line, j) => page.drawText(line, { x: x + 3, y: firstBaseline - j * leading, size: cell.size, font: header ? headingFont : font }));
+        const cellFont = header ? headingFont : font;
+        cell.lines.forEach((line, j) => page.drawText(line, { x: i === 6 || i === 7 ? x + (widths[i] - cellFont.widthOfTextAtSize(line, cell.size)) / 2 : x + 3, y: firstBaseline - j * leading, size: cell.size, font: cellFont }));
         x += widths[i];
       });
       y -= height;
     }
-    cellRow(labels.map((label, i) => ({ lines: [label], size: Math.min(8, (widths[i] - 6) / Math.max(1, headingFont.widthOfTextAtSize(label, 1))) })), columnHeight, true);
+    cellRow(labels.map((label, i) => i === 6 || i === 7 ? { lines: wrap(label, headingFont, widths[i] - 6, 7.5), size: 7.5 } : { lines: [label], size: Math.min(8, (widths[i] - 6) / Math.max(1, headingFont.widthOfTextAtSize(label, 1))) }), columnHeight, true);
     rows.forEach(row => cellRow(row.cells, row.height));
     if (showPageNumbers) page.drawText(`Página ${pageIndex + 1} de ${chunks.length}`, { x: 710, y: bottom, size: 6, font });
   });

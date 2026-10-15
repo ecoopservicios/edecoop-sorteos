@@ -4,7 +4,16 @@ export type SouvenirPrintMember = {
   id: string; listNumber: number; firstName: string; lastName: string; displayDocumentId: string | null;
   employeeNumber: string | null; companyId: string; companyName: string; office: string | null; unit: string | null;
   approximateLocation: string | null;
+  delivered: boolean;
+  collectedByOther: boolean;
 };
+
+export const SOUVENIR_PRINT_COLUMNS = ["No.", "Nombres", "Apellidos", "Cédula", "No. empleado", "Empresa", "Retiró el socio", "Retiró otra persona", "Firma"];
+export const SOUVENIR_PRINT_WIDTHS = [32, 108, 138, 86, 56, 60, 52, 60, 176];
+
+export function souvenirPrintIndicators(member: Pick<SouvenirPrintMember, "delivered" | "collectedByOther">) {
+  return [member.delivered && !member.collectedByOther ? "Sí" : "", member.delivered && member.collectedByOther ? "Sí" : ""];
+}
 
 export function souvenirPrintSheets(members: SouvenirPrintMember[], pageSize = 30) {
   const groups = new Map<string, { location: string; members: SouvenirPrintMember[] }>();

@@ -92,6 +92,15 @@ async function main() {
     const exportedFirst = exported.find(row => row['Número de empleado'] === first.employeeNumber);
     assert.equal(exportedFirst['Empleado que retiró'], number);
     assert.equal(exportedFirst['Retiró'], 'Otro socio de EDESUR');
+    await page.goto(base + '/entrega-souvenir/imprimir');
+    await page.getByRole('button', { name: 'Empresa', exact: true }).click();
+    await page.locator(`input[type="checkbox"][value="${company.id}"]`).check();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('columnheader', { name: 'Retiró el socio', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('columnheader', { name: 'Retiró otra persona', exact: true }).count(), 1);
+    assert.deepEqual(await page.locator('tbody tr td:nth-child(7)').allTextContents(), ['', '', '', '']);
+    assert.deepEqual(await page.locator('tbody tr td:nth-child(8)').allTextContents(), ['Sí', 'Sí', 'Sí', '']);
+    assert(!(await page.locator('tbody').innerText()).includes(collector.firstName + ' ' + collector.lastName));
     const history = await (await api('/api/souvenir/listado?view=estado')).json();
     assert.equal(history.members.find(m => m.id === third.id).collectorEmployeeNumber, number);
     await db.souvenirMember.delete({ where: { id: first.id } });
