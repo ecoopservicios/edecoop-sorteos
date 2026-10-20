@@ -30,9 +30,11 @@ async function main() {
       await page.goto(base + '/entrega-souvenir/' + view);
       const detail = n => page.getByRole('heading', { name: `Detalle de socios (${n})`, exact: true });
       await detail(24).waitFor();
+      const originalSummary = await page.getByRole('table').first().innerText();
       await page.getByRole('button', { name: 'Ver pendientes', exact: true }).click();
       await detail(14).waitFor();
-      assert.equal(await page.getByRole('button', { name: 'Estado', exact: true }).innerText().then(t => t.includes('Pendientes')), true);
+      assert.match(await page.getByRole('button', { name: 'Estado', exact: true }).innerText(), /Todos los estados/);
+      assert.equal(await page.getByRole('table').first().innerText(), originalSummary);
       await page.getByRole('button', { name: 'Ver socios', exact: true }).click();
       await detail(24).waitFor();
       await page.getByRole('button', { name: 'Ver entregados', exact: true }).click();
@@ -40,7 +42,8 @@ async function main() {
       await page.getByRole('button', { name: 'Ver socios', exact: true }).click();
       await page.getByRole('button', { name: 'Ver pendientes de EDESUR', exact: true }).click();
       await detail(10).waitFor();
-      assert.match(await page.getByRole('button', { name: 'Empresa', exact: true }).innerText(), /EDESUR/);
+      assert.match(await page.getByRole('button', { name: 'Empresa', exact: true }).innerText(), /Todas las empresas/);
+      assert.equal(await page.getByRole('table').first().innerText(), originalSummary);
       await page.getByRole('button', { name: 'Ver todos los socios de EDESUR', exact: true }).click();
       await detail(20).waitFor();
       await page.getByRole('button', { name: 'Ver entregados de EDESUR', exact: true }).click();
@@ -61,11 +64,13 @@ async function main() {
       await detail(24).waitFor();
       await page.getByRole('button', { name: 'Ver entregados de PRUEBA', exact: true }).click();
       await detail(0).waitFor();
+      assert.equal(await page.getByRole('table').first().innerText(), originalSummary);
       await page.getByRole('button', { name: 'Ver socios', exact: true }).click();
-      await detail(4).waitFor();
+      await detail(24).waitFor();
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole('button', { name: 'Ver pendientes de PRUEBA', exact: true }).click();
       await detail(4).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Ver socios', exact: true }).innerText(), '24');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await page.screenshot({ path: `outputs/souvenir-summary-${view}-mobile.png`, fullPage: true });
       await page.setViewportSize({ width: 1366, height: 900 });

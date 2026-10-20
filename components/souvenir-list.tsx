@@ -43,6 +43,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const [office, setOffice] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [state, setState] = useState<string[]>([]);
+  const [detailFilter, setDetailFilter] = useState<{ status: string; companyId?: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [clearing, setClearing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,6 +51,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const [reason, setReason] = useState("");
   const [clearCompany, setClearCompany] = useState("");
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { setDetailFilter(null); }, [company, office, location, search, state]);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError("");
     fetch(`/api/souvenir/listado?view=${view}`, { cache: "no-store", signal: controller.signal })
@@ -70,16 +72,14 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const companyRows = rows.filter(row => !company.length || company.includes(row.companyId));
   const offices = [...new Map(companyRows.map(row => [souvenirOfficeKey(row.office), souvenirOfficeLabel(row.office)])).entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
   const locations = [...new Map(companyRows.filter(row => !office.length || office.includes(souvenirOfficeKey(row.office))).map(row => [souvenirLocationKey(row.approximateLocation), souvenirLocationLabel(row.approximateLocation)])).entries()];
-  const filtered = rows.filter(row => matchesSouvenirFilters({ ...row, delivered: !!row.deliveredAt }, { companies: company, offices: office, locations: location, states: state }) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
-  const quantities = summary(filtered);
+  const summaryRows = rows.filter(row => matchesSouvenirFilters({ ...row, delivered: !!row.deliveredAt }, { companies: company, offices: office, locations: location, states: state }) && (!query || [row.fullName, row.employeeNumber || "", row.documentId || ""].some(value => key(value).includes(query))));
+  const filtered = summaryRows.filter(row => (!detailFilter?.companyId || row.companyId === detailFilter.companyId) && (!detailFilter?.status || detailFilter.status === (row.deliveredAt ? "DELIVERED" : "PENDING")));
+  const quantities = summary(summaryRows);
   const total = quantities.reduce((sum, row) => sum + row.Total, 0);
   const delivered = quantities.reduce((sum, row) => sum + row.Entregados, 0);
 
   function filterFromSummary(status: string, companyId?: string) {
-    if (companyId && (company.length !== 1 || company[0] !== companyId)) {
-      setCompany([companyId]); setOffice([]); setLocation([]);
-    }
-    setState(status ? [status] : []);
+    setDetailFilter(status || companyId ? { status, companyId } : null);
     detailHeading.current?.focus({ preventScroll: true });
     detailHeading.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -124,7 +124,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       <SouvenirTable headers={["Empresa", "Total", "Pendientes", "Entregados", "% de entrega"]} rows={quantities.map(row => ({ id: row.companyId, cells: [row.Empresa, summaryNumber(row.Total, `Ver todos los socios de ${row.Empresa}`, "", row.companyId), summaryNumber(row.Pendientes, `Ver pendientes de ${row.Empresa}`, "PENDING", row.companyId, "text-amber-700"), summaryNumber(row.Entregados, `Ver entregados de ${row.Empresa}`, "DELIVERED", row.companyId, "text-emerald-700"), summaryNumber(`${row["Entrega %"]}%`, `Ver porcentaje de entrega de ${row.Empresa}`, "DELIVERED", row.companyId)] }))} empty={loading ? "Cargando..." : "Sin registros."} />
     </section>
     <section><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 ref={detailHeading} tabIndex={-1} className="scroll-mt-40 text-lg font-bold focus:outline-none">Detalle de socios ({filtered.length})</h2><div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={download}><Download size={18} />Descargar Excel</button>{view === "listado" && isAdmin && <button className={button + " border-red-200 text-red-700"} disabled={loading || !rows.length} onClick={() => setClearing(true)}><Trash2 size={18} />Limpiar listado</button>}</div></div>
-      <SouvenirTable key={`${company}:${office}:${location}:${search}:${state}`} headers={["No.", "Empresa", "Nombre", "Cédula consulta", "Cédula mostrar", "Empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Fecha / responsable", "Quién retiró"]} rows={filtered.map(row => ({ id: row.id, group: `${row.companyName} · ${souvenirLocationLabel(row.approximateLocation)}`, cells: [row.listNumber, row.companyName, row.fullName, row.documentId, row.displayDocumentId, row.employeeNumber, row.sex, row.office, row.unit, row.approximateLocation, row.deliveredAt ? "Entregado" : "Pendiente", <span key="date">{dateLabel(row.deliveredAt)}<br />{row.responsible}</span>, row.deliveredAt ? row.collectedByOther ? `${row.collectorName} · EDESUR · ${row.collectorEmployeeNumber}` : "El socio" : "-"] }))} empty={loading ? "Cargando..." : "Sin coincidencias."} />
+      <SouvenirTable key={`${company}:${office}:${location}:${search}:${state}:${detailFilter?.companyId}:${detailFilter?.status}`} headers={["No.", "Empresa", "Nombre", "Cédula consulta", "Cédula mostrar", "Empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Fecha / responsable", "Quién retiró"]} rows={filtered.map(row => ({ id: row.id, group: `${row.companyName} · ${souvenirLocationLabel(row.approximateLocation)}`, cells: [row.listNumber, row.companyName, row.fullName, row.documentId, row.displayDocumentId, row.employeeNumber, row.sex, row.office, row.unit, row.approximateLocation, row.deliveredAt ? "Entregado" : "Pendiente", <span key="date">{dateLabel(row.deliveredAt)}<br />{row.responsible}</span>, row.deliveredAt ? row.collectedByOther ? `${row.collectorName} · EDESUR · ${row.collectorEmployeeNumber}` : "El socio" : "-"] }))} empty={loading ? "Cargando..." : "Sin coincidencias."} />
     </section>
     {clearing && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-label="Limpiar listado" onSubmit={clear} className="w-full max-w-lg space-y-4 rounded-lg bg-white p-5 shadow-xl">
       <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Limpiar listado</h2><button type="button" className={button} title="Cerrar" disabled={busy} onClick={() => setClearing(false)}><X size={18} /></button></div>
