@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Search, Trash2, X } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -24,9 +24,9 @@ const key = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 const dateLabel = (value: string | null) => value ? new Date(value).toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }) : "";
 
 function summary(rows: Row[]) {
-  const groups = new Map<string, { Empresa: string; Total: number; Pendientes: number; Entregados: number; "Entrega %": number }>();
+  const groups = new Map<string, { companyId: string; Empresa: string; Total: number; Pendientes: number; Entregados: number; "Entrega %": number }>();
   for (const row of rows) {
-    const item = groups.get(row.companyId) || { Empresa: row.companyName, Total: 0, Pendientes: 0, Entregados: 0, "Entrega %": 0 };
+    const item = groups.get(row.companyId) || { companyId: row.companyId, Empresa: row.companyName, Total: 0, Pendientes: 0, Entregados: 0, "Entrega %": 0 };
     item.Total++; if (row.deliveredAt) item.Entregados++; else item.Pendientes++;
     item["Entrega %"] = Math.round(item.Entregados / item.Total * 100);
     groups.set(row.companyId, item);
@@ -49,6 +49,7 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const [confirmation, setConfirmation] = useState("");
   const [reason, setReason] = useState("");
   const [clearCompany, setClearCompany] = useState("");
+  const detailHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError("");
     fetch(`/api/souvenir/listado?view=${view}`, { cache: "no-store", signal: controller.signal })
@@ -74,10 +75,23 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
   const total = quantities.reduce((sum, row) => sum + row.Total, 0);
   const delivered = quantities.reduce((sum, row) => sum + row.Entregados, 0);
 
+  function filterFromSummary(status: string, companyId?: string) {
+    if (companyId && (company.length !== 1 || company[0] !== companyId)) {
+      setCompany([companyId]); setOffice([]); setLocation([]);
+    }
+    setState(status ? [status] : []);
+    detailHeading.current?.focus({ preventScroll: true });
+    detailHeading.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function summaryNumber(value: number | string, label: string, status: string, companyId?: string, color = "") {
+    return <button type="button" disabled={loading} aria-label={label} title={label} onClick={() => filterFromSummary(status, companyId)} className={`inline-flex min-h-11 min-w-11 items-center rounded px-1 text-left underline decoration-dotted underline-offset-4 hover:bg-emerald-50 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-50 ${color}`}>{value}</button>;
+  }
+
   function download() {
     if (!rows.length) { notify("No hay registros para descargar.", "warning"); return; }
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(quantities), "Resumen por empresa");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(quantities.map(({ companyId: _companyId, ...row }) => row)), "Resumen por empresa");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filtered.map(row => ({ "No. de listado": row.listNumber, Empresa: row.companyName, Nombres: row.firstName, Apellidos: row.lastName, "Nombre completo": row.fullName, "Cédula consulta": row.documentId, "Cédula mostrar": row.displayDocumentId, "Número de empleado": row.employeeNumber, Sexo: row.sex, Oficina: row.office, Unidad: row.unit, "Ubicación aproximada": row.approximateLocation, Dirección: row.organizationalDirection, "Página del físico": row.physicalListPage, Estado: row.deliveredAt ? "Entregado" : "Pendiente", "Fecha de entrega": dateLabel(row.deliveredAt), Responsable: row.responsible, "Retiró": row.deliveredAt ? row.collectedByOther ? "Otro socio de EDESUR" : "El socio" : "", "Empleado que retiró": row.collectorEmployeeNumber, "Nombre de quien retiró": row.collectorName, "Retirado del listado": row.clearedAt ? "Sí" : "No" }))), "Detalle");
     XLSX.writeFile(workbook, `souvenir-${view}.xlsx`); notify("Excel descargado.", "success");
   }
@@ -106,10 +120,10 @@ export function SouvenirList({ view, isAdmin }: { view: "listado" | "estado"; is
       <MultiSelectFilter label="Estado" allLabel="Todos los estados" options={SOUVENIR_STATUS_OPTIONS} value={state} onChange={setState} />
     </section>
     <section><h2 className="mb-3 text-lg font-bold">{view === "listado" ? "Cantidades por empresa" : "Entregas por empresa"}</h2>
-      <dl className="mb-4 grid grid-cols-3 gap-3">{[["Socios", total], ["Pendientes", total - delivered], ["Entregados", delivered]].map(([label, value]) => <div key={label} className="border-b-2 border-slate-200 pb-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 text-2xl font-bold">{loading ? "..." : value}</dd></div>)}</dl>
-      <SouvenirTable headers={["Empresa", "Total", "Pendientes", "Entregados", "% de entrega"]} rows={quantities.map(row => ({ id: row.Empresa, cells: [row.Empresa, row.Total, <span key="pending" className="text-amber-700">{row.Pendientes}</span>, <span key="delivered" className="text-emerald-700">{row.Entregados}</span>, `${row["Entrega %"]}%`] }))} empty={loading ? "Cargando..." : "Sin registros."} />
+      <dl className="mb-4 grid grid-cols-3 gap-3">{[{ label: "Socios", value: total, status: "" }, { label: "Pendientes", value: total - delivered, status: "PENDING" }, { label: "Entregados", value: delivered, status: "DELIVERED" }].map(({ label, value, status }) => <div key={label} className="border-b-2 border-slate-200 pb-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 text-2xl font-bold">{summaryNumber(loading ? "..." : value, `Ver ${label.toLowerCase()}`, status)}</dd></div>)}</dl>
+      <SouvenirTable headers={["Empresa", "Total", "Pendientes", "Entregados", "% de entrega"]} rows={quantities.map(row => ({ id: row.companyId, cells: [row.Empresa, summaryNumber(row.Total, `Ver todos los socios de ${row.Empresa}`, "", row.companyId), summaryNumber(row.Pendientes, `Ver pendientes de ${row.Empresa}`, "PENDING", row.companyId, "text-amber-700"), summaryNumber(row.Entregados, `Ver entregados de ${row.Empresa}`, "DELIVERED", row.companyId, "text-emerald-700"), summaryNumber(`${row["Entrega %"]}%`, `Ver porcentaje de entrega de ${row.Empresa}`, "DELIVERED", row.companyId)] }))} empty={loading ? "Cargando..." : "Sin registros."} />
     </section>
-    <section><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Detalle de socios ({filtered.length})</h2><div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={download}><Download size={18} />Descargar Excel</button>{view === "listado" && isAdmin && <button className={button + " border-red-200 text-red-700"} disabled={loading || !rows.length} onClick={() => setClearing(true)}><Trash2 size={18} />Limpiar listado</button>}</div></div>
+    <section><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 ref={detailHeading} tabIndex={-1} className="scroll-mt-40 text-lg font-bold focus:outline-none">Detalle de socios ({filtered.length})</h2><div className="flex flex-wrap gap-2"><button className={button} disabled={loading} onClick={download}><Download size={18} />Descargar Excel</button>{view === "listado" && isAdmin && <button className={button + " border-red-200 text-red-700"} disabled={loading || !rows.length} onClick={() => setClearing(true)}><Trash2 size={18} />Limpiar listado</button>}</div></div>
       <SouvenirTable key={`${company}:${office}:${location}:${search}:${state}`} headers={["No.", "Empresa", "Nombre", "Cédula consulta", "Cédula mostrar", "Empleado", "Sexo", "Oficina", "Unidad", "Ubicación aproximada", "Estado", "Fecha / responsable", "Quién retiró"]} rows={filtered.map(row => ({ id: row.id, group: `${row.companyName} · ${souvenirLocationLabel(row.approximateLocation)}`, cells: [row.listNumber, row.companyName, row.fullName, row.documentId, row.displayDocumentId, row.employeeNumber, row.sex, row.office, row.unit, row.approximateLocation, row.deliveredAt ? "Entregado" : "Pendiente", <span key="date">{dateLabel(row.deliveredAt)}<br />{row.responsible}</span>, row.deliveredAt ? row.collectedByOther ? `${row.collectorName} · EDESUR · ${row.collectorEmployeeNumber}` : "El socio" : "-"] }))} empty={loading ? "Cargando..." : "Sin coincidencias."} />
     </section>
     {clearing && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-label="Limpiar listado" onSubmit={clear} className="w-full max-w-lg space-y-4 rounded-lg bg-white p-5 shadow-xl">
