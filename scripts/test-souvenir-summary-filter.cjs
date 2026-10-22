@@ -23,10 +23,14 @@ async function main() {
     }));
     browser = await chromium.launch({ channel: 'msedge', headless: true });
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-    await context.addCookies([{ name: 'edecoop_session', value: cookie, url: base }]);
+    const documentEntry = crypto.createHmac('sha256', process.env.AUTH_SECRET || 'edecoop-dev-secret-change-me').update('document-entry:' + cookie).digest('base64url');
+    async function authorizeDocument() {
+      await context.addCookies([{ name: 'edecoop_session', value: cookie, url: base }, { name: 'edecoop_document_entry', value: documentEntry, url: base }]);
+    }
     const page = await context.newPage();
     await page.route('**/api/souvenir/listado?*', route => route.fulfill({ json: { members: rows } }));
     for (const view of ['estado', 'listado']) {
+      await authorizeDocument();
       await page.goto(base + '/entrega-souvenir/' + view);
       const detail = n => page.getByRole('heading', { name: `Detalle de socios (${n})`, exact: true });
       await detail(24).waitFor();
@@ -60,6 +64,7 @@ async function main() {
       await page.getByRole('button', { name: 'Ver porcentaje de entrega de EDESUR', exact: true }).click();
       await detail(10).waitFor();
       assert.equal(await page.getByRole('table').last().locator('tbody tr:not([data-souvenir-group])').count(), 10);
+      await authorizeDocument();
       await page.reload();
       await detail(24).waitFor();
       await page.getByRole('button', { name: 'Ver entregados de PRUEBA', exact: true }).click();

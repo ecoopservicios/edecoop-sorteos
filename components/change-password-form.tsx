@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { useRouter } from "next/navigation";
 
 export function ChangePasswordForm({
   mustChangePassword,
@@ -13,6 +14,7 @@ export function ChangePasswordForm({
 }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,7 +41,8 @@ export function ChangePasswordForm({
     }
 
     notify("Contraseña actualizada correctamente.", "success");
-    window.location.assign("/proyectos");
+    router.replace("/proyectos");
+    router.refresh();
   }
 
   return (

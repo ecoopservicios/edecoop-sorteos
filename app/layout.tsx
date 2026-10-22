@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ToastViewport } from "@/components/toast-viewport";
+import { SessionExpiry } from "@/components/session-expiry";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <ToastViewport />
+        <SessionExpiry />
         {children}
       </body>
     </html>

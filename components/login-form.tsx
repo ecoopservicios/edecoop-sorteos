@@ -62,7 +62,7 @@ export function LoginForm({ hasError, sessionExpired }: { hasError?: boolean; se
       </label>
       {sessionExpired ? (
         <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
-          La sesión caducó o el navegador fue reiniciado. Debe iniciar sesión nuevamente.
+          La sesión finalizó. Debe iniciar sesión nuevamente.
         </p>
       ) : null}
       {hasError ? <p className="mb-4 text-sm font-semibold text-red-700">Usuario o contraseña incorrectos.</p> : null}
