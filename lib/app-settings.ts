@@ -107,11 +107,11 @@ export async function getCooperativeSettings() {
 
 export function fallbackDataUpdateTextSettings(): DataUpdateTextSettings {
   return {
-    title: "Actualizacion de Datos",
+    title: "Actualización de datos",
     description: "Seleccione su empresa para validar sus datos registrados.",
     lookupQuestion: "Digite el dato de consulta solicitado para su empresa.",
     notFoundMessage: "No encontramos sus datos en nuestros registros.",
-    successMessage: "Gracias por actualizar sus datos. La informacion fue recibida correctamente por EDECOOP.",
+    successMessage: "Gracias por actualizar sus datos. La información fue recibida correctamente por EDECOOP.",
     whatsappMessage: "Hola EDECOOP, necesito actualizar mis datos y no aparezco en el portal para la empresa {empresa}."
   };
 }
@@ -121,12 +121,12 @@ export function fallbackDataUpdateQuestions(): DataUpdateQuestion[] {
     {
       id: "personalPhone",
       fieldKey: "personalPhone",
-      label: "Telefono personal",
+      label: "Teléfono personal",
       section: "CONTACT",
       type: "PHONE",
       required: true,
       isSystem: true,
-      helpText: "Debe contener exactamente 10 numeros."
+      helpText: "Debe contener exactamente 10 números."
     },
     {
       id: "whatsappPhone",
@@ -136,12 +136,12 @@ export function fallbackDataUpdateQuestions(): DataUpdateQuestion[] {
       type: "PHONE",
       required: true,
       isSystem: true,
-      helpText: "Si es el mismo telefono personal, puede repetirlo."
+      helpText: "Si es el mismo teléfono personal, puede repetirlo."
     },
     {
       id: "personalEmail",
       fieldKey: "personalEmail",
-      label: "Correo electronico personal",
+      label: "Correo electrónico personal",
       section: "CONTACT",
       type: "EMAIL",
       required: true,
@@ -161,22 +161,22 @@ export function fallbackDataUpdateQuestions(): DataUpdateQuestion[] {
     {
       id: "emergencyContactPhone",
       fieldKey: "emergencyContactPhone",
-      label: "Telefono emergencia",
+      label: "Teléfono de emergencia",
       section: "EMERGENCY",
       type: "PHONE",
       required: true,
       isSystem: true,
-      helpText: "Debe contener exactamente 10 numeros."
+      helpText: "Debe contener exactamente 10 números."
     },
     {
       id: "emergencyContactRelation",
       fieldKey: "emergencyContactRelation",
-      label: "Relacion",
+      label: "Relación",
       section: "EMERGENCY",
       type: "SELECT",
       required: true,
       isSystem: true,
-      helpText: "Seleccione la relacion con su contacto de emergencia.",
+      helpText: "Seleccione la relación con su contacto de emergencia.",
       options: ["FAMILIAR", "ESPOSA", "HIJO", "AMIGO"]
     }
   ];
@@ -185,6 +185,13 @@ export function fallbackDataUpdateQuestions(): DataUpdateQuestion[] {
 function normalizeQuestions(value: unknown): DataUpdateQuestion[] {
   const defaults = fallbackDataUpdateQuestions();
   if (!Array.isArray(value)) return defaults;
+
+  const legacyLabels: Record<string, string> = {
+    personalPhone: "Telefono personal",
+    personalEmail: "Correo electronico personal",
+    emergencyContactPhone: "Telefono emergencia",
+    emergencyContactRelation: "Relacion"
+  };
 
   const byField = new Map(defaults.map((question) => [question.fieldKey, question]));
   const normalized = value
@@ -200,7 +207,8 @@ function normalizeQuestions(value: unknown): DataUpdateQuestion[] {
         ? (row.section as DataUpdateQuestionSection)
         : system?.section || "ADDITIONAL";
       const id = String(row.id || fieldKey || randomUUID()).trim();
-      const label = String(row.label || system?.label || "").trim();
+      const requestedLabel = String(row.label || system?.label || "").trim();
+      const label = system && requestedLabel === legacyLabels[fieldKey] ? system.label : requestedLabel;
       if (!id || !fieldKey || !label) return null;
 
       return {
@@ -263,11 +271,11 @@ export async function getDataUpdateTextSettings() {
   });
 
   for (const row of rows) {
-    if (row.key === APP_SETTING_KEYS.dataUpdateTitle) settings.title = row.value;
+    if (row.key === APP_SETTING_KEYS.dataUpdateTitle && !/^Actualizacion de [Dd]atos$/.test(row.value)) settings.title = row.value;
     if (row.key === APP_SETTING_KEYS.dataUpdateDescription) settings.description = row.value;
     if (row.key === APP_SETTING_KEYS.dataUpdateLookupQuestion) settings.lookupQuestion = row.value;
     if (row.key === APP_SETTING_KEYS.dataUpdateNotFoundMessage) settings.notFoundMessage = row.value;
-    if (row.key === APP_SETTING_KEYS.dataUpdateSuccessMessage) settings.successMessage = row.value;
+    if (row.key === APP_SETTING_KEYS.dataUpdateSuccessMessage && row.value !== "Gracias por actualizar sus datos. La informacion fue recibida correctamente por EDECOOP.") settings.successMessage = row.value;
     if (row.key === APP_SETTING_KEYS.dataUpdateWhatsappMessage) settings.whatsappMessage = row.value;
   }
 

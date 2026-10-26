@@ -7,7 +7,7 @@ export const DATA_UPDATE_RECEIPT = "edecoop_data_update_receipt";
 type Proof = { purpose: "identity" | "receipt"; memberId: string; lookup: string; documentId: string | null; expiresAt: number };
 function signature(value: string) {
   const secret = process.env.AUTH_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") throw new Error("Configuracion de seguridad no disponible.");
+  if (!secret && process.env.NODE_ENV === "production") throw new Error("Configuración de seguridad no disponible.");
   return createHmac("sha256", secret || "edecoop-dev-secret-change-me").update(`data-update:${value}`).digest("base64url");
 }
 export function createDataUpdateProof(memberId: string, lookup: string, documentId: string | null, purpose: Proof["purpose"] = "identity") {
@@ -57,5 +57,5 @@ export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" 
     await tx.appSetting.upsert({ where: { key }, create: { key, value: JSON.stringify(counter) }, update: { value: JSON.stringify(counter) } });
     return { limited: false, seconds: 0 };
   });
-  return result.limited ? NextResponse.json({ error: "Demasiados intentos desde esta conexion. Espera unos minutos antes de continuar." }, { status: 429, headers: { "Retry-After": String(result.seconds), "Cache-Control": "no-store" } }) : null;
+  return result.limited ? NextResponse.json({ error: "Demasiados intentos desde esta conexión. Espera unos minutos antes de continuar." }, { status: 429, headers: { "Retry-After": String(result.seconds), "Cache-Control": "no-store" } }) : null;
 }

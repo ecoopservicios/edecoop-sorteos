@@ -11,12 +11,12 @@ class AlreadySubmitted extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
-    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualizacion en esta sesion.", code: "COMPLETED" }, { status: 409 });
+    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualización en esta sesión.", code: "COMPLETED" }, { status: 409 });
     const limited = await dataUpdateRateLimit(request, "submit");
     if (limited) return limited;
     const payload = await request.json();
     const proof = readDataUpdateProof(payload.verificationToken);
-    if (!proof) return jsonError("La validacion de identidad vencio o no es valida. Vuelve a consultar tus datos.", 403);
+    if (!proof) return jsonError("La validación de identidad venció o no es válida. Vuelve a consultar tus datos.", 403);
     const memberDirectoryId = String(payload.memberDirectoryId || "");
     const member = await prisma.memberDirectory.findFirst({
       where: { id: memberDirectoryId, isActive: true },
@@ -29,26 +29,26 @@ export async function POST(request: NextRequest) {
 
     const lookupValue = normalizeLookupValue(String(payload.lookupValue || ""), company.dataUpdateLookupField);
     const expectedLookup = company.dataUpdateLookupField === "DOCUMENT_ID" ? member.documentId : member.employeeNumber;
-    if (lookupValue !== expectedLookup) return jsonError("Los datos de validacion no coinciden.", 422);
-    if (proof.memberId !== member.id || proof.lookup !== lookupValue || proof.documentId !== member.documentId) return jsonError("La validacion de identidad no corresponde a este socio.", 403);
+    if (lookupValue !== expectedLookup) return jsonError("Los datos de validación no coinciden.", 422);
+    if (proof.memberId !== member.id || proof.lookup !== lookupValue || proof.documentId !== member.documentId) return jsonError("La validación de identidad no corresponde a este socio.", 403);
 
-    const personalPhone = tenDigitContactPhone(String(payload.personalPhone || ""), "Telefono personal");
+    const personalPhone = tenDigitContactPhone(String(payload.personalPhone || ""), "Teléfono personal");
     const whatsappMode = String(payload.whatsappMode || "");
     if (!["SAME", "OTHER", "NONE"].includes(whatsappMode)) return jsonError("Indica si tienes WhatsApp.", 422);
     const whatsappPhone = whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? personalPhone : tenDigitContactPhone(String(payload.whatsappPhone || ""), "WhatsApp personal");
     const personalEmail = normalizePersonalEmail(String(payload.personalEmail || ""));
     const emergencyContactName = validatePersonName(String(payload.emergencyContactName || ""), "Contacto de emergencia");
-    const emergencyContactPhone = tenDigitContactPhone(String(payload.emergencyContactPhone || ""), "Telefono de emergencia");
+    const emergencyContactPhone = tenDigitContactPhone(String(payload.emergencyContactPhone || ""), "Teléfono de emergencia");
     const relationValues = Object.values(EmergencyContactRelation);
     const relation = String(payload.emergencyContactRelation || "");
-    if (!relationValues.includes(relation as EmergencyContactRelation)) return jsonError("Selecciona la relacion con tu contacto de emergencia.", 422);
+    if (!relationValues.includes(relation as EmergencyContactRelation)) return jsonError("Selecciona la relación con tu contacto de emergencia.", 422);
     const emergencyContactRelation = relation as EmergencyContactRelation;
 
     if (personalPhone === member.personalPhone) {
-      return jsonError("El telefono ingresado coincide con el que tenemos registrado. Favor ingresar su telefono movil personal actualizado.", 422);
+      return jsonError("El teléfono ingresado coincide con el que tenemos registrado. Favor ingresar su teléfono móvil personal actualizado.", 422);
     }
     if (personalEmail === member.personalEmail) {
-      return jsonError("El correo ingresado coincide con el que tenemos registrado. Favor ingresar su correo electronico personal actualizado.", 422);
+      return jsonError("El correo ingresado coincide con el que tenemos registrado. Favor ingresar su correo electrónico personal actualizado.", 422);
     }
 
     const questions = await getDataUpdateQuestions();
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       // Serialize submissions for the same person, including requests from different tabs or replicas.
       await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `data-update-member:${member.documentId || member.id}`);
       const existing = await tx.memberDataUpdateSubmission.findFirst({ where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] }, select: { id: true } });
-      if (existing) throw new AlreadySubmitted("Este socio ya tiene una actualizacion registrada.");
+      if (existing) throw new AlreadySubmitted("Este socio ya tiene una actualización registrada.");
       const created = await tx.memberDataUpdateSubmission.create({
         data: {
           memberDirectoryId: member.id,

@@ -8,27 +8,27 @@ export function normalizeDigits(value: string) {
 
 export function tenDigitContactPhone(value: string, label: string) {
   const digits = normalizeDigits(value);
-  if (digits.length !== 10) throw new Error(`${label} debe contener exactamente 10 numeros.`);
+  if (digits.length !== 10) throw new Error(`${label} debe contener exactamente 10 números.`);
   return digits;
 }
 
 export function normalizeLookupValue(value: string, lookupField: MemberLookupField) {
   const digits = normalizeDigits(value);
   if (lookupField === MemberLookupField.DOCUMENT_ID && digits.length !== 11) {
-    throw new Error("La cedula debe contener exactamente 11 numeros.");
+    throw new Error("La cédula debe contener exactamente 11 números.");
   }
   if (lookupField === MemberLookupField.EMPLOYEE_NUMBER && (!digits || digits.length > 5)) {
-    throw new Error("El numero de empleado debe contener maximo 5 numeros.");
+    throw new Error("El número de empleado debe contener máximo 5 números.");
   }
   return digits;
 }
 
 export function normalizePersonalEmail(value: string) {
   const email = String(value || "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Debe ingresar un correo electronico valido.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Debe ingresar un correo electrónico válido.");
   const domain = email.split("@")[1];
   if (BLOCKED_EMAIL_DOMAINS.has(domain)) {
-    throw new Error("No se permite correo institucional. Favor ingresar su correo electronico personal.");
+    throw new Error("No se permite correo institucional. Favor ingresar su correo electrónico personal.");
   }
   return email;
 }
@@ -38,7 +38,7 @@ export function compareContactValue(newValue: string, previousValue?: string | n
 }
 
 export function lookupFieldLabel(field: MemberLookupField) {
-  return field === MemberLookupField.DOCUMENT_ID ? "Cedula" : "Numero de empleado";
+  return field === MemberLookupField.DOCUMENT_ID ? "Cédula" : "Número de empleado";
 }
 
 export function buildSupportWhatsappUrl(phone: string, companyName: string, messageTemplate?: string) {

@@ -21,7 +21,12 @@ async function main() {
     for (const lookup of ['EMPLOYEE_NUMBER', 'DOCUMENT_ID']) companies.push(await db.enrollmentCompany.create({ data: { formId: form.id, name: 'PRUEBA PREGUNTAS ' + crypto.randomUUID(), dataUpdateEnabled: true, dataUpdateLookupField: lookup } }));
     for (let i = 0; i < 5; i++) members.push(await db.memberDirectory.create({ data: { enrollmentCompanyId: companies[i === 2 ? 1 : 0].id, firstName: 'SOCIA', lastName: 'PRUEBA ' + ['UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO'][i], employeeNumber: String(99990 + i), documentId: '0010000000' + i } }));
     oldQuestions = await db.appSetting.findUnique({ where: { key: 'dataUpdate.questions' } }); settingRead = true;
-    const questionValue = JSON.stringify([{ id: 'custom-zone', fieldKey: 'customZone', label: 'Zona de residencia', type: 'SELECT', section: 'ADDITIONAL', required: true, options: ['NORTE', 'SUR'] }]);
+    const questionValue = JSON.stringify([
+      { id: 'custom-zone', fieldKey: 'customZone', label: 'Zona de residencia', type: 'SELECT', section: 'ADDITIONAL', required: true, options: ['NORTE', 'SUR'] },
+      { id: 'personalEmail', fieldKey: 'personalEmail', label: 'Correo electronico personal', section: 'CONTACT' },
+      { id: 'emergencyContactPhone', fieldKey: 'emergencyContactPhone', label: 'Telefono emergencia', section: 'EMERGENCY' },
+      { id: 'emergencyContactRelation', fieldKey: 'emergencyContactRelation', label: 'Relacion', section: 'EMERGENCY' }
+    ]);
     await db.appSetting.upsert({ where: { key: 'dataUpdate.questions' }, create: { key: 'dataUpdate.questions', value: questionValue }, update: { value: questionValue } });
     browser = await chromium.launch({ channel: 'msedge', headless: true });
     fs.mkdirSync('tmp/data-update-questions', { recursive: true });
@@ -36,7 +41,7 @@ async function main() {
       let attempts = 0;
       await page.route('**/api/actualizacion-datos/solicitudes', async route => {
         attempts++;
-        if (attempts === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Prueba de conexion: reintenta el envio.' }) });
+        if (attempts === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Prueba de conexión: reintenta el envio.' }) });
         await new Promise(resolve => setTimeout(resolve, 500));
         return route.continue();
       });
@@ -44,39 +49,44 @@ async function main() {
       const next = () => page.getByRole('button', { name: 'Continuar', exact: true }).click();
       await page.goto(base + '/actualizar-datos');
       await heading('Selecciona tu empresa').waitFor();
+      assert.equal(await page.locator('header p').count(), 0);
+      assert.equal(await page.locator('[id$="-help"]').count(), 0);
+      await heading('Actualización de datos').waitFor();
       assert.equal(await page.locator('form input:visible').count(), 0);
       await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
       await next();
       const employeeLookup = index !== 2;
-      await page.getByLabel(employeeLookup ? 'Numero de empleado' : 'Cedula', { exact: true }).fill(employeeLookup ? member.employeeNumber : member.documentId);
+      await page.getByLabel(employeeLookup ? 'Número de empleado' : 'Cédula', { exact: true }).fill(employeeLookup ? member.employeeNumber : member.documentId);
       if (employeeLookup) {
         const identityResponse = page.waitForResponse('**/api/actualizacion-datos/buscar');
         await next();
         assert.deepEqual(await (await identityResponse).json(), { requiresDocument: true });
-        await heading('Valida tu cedula').waitFor();
+        await heading('Valida tu cédula').waitFor();
         assert(!(await page.locator('body').innerText()).includes(member.lastName));
-        await page.getByLabel('Cedula', { exact: true }).fill('00199999999');
+        await page.getByLabel('Cédula', { exact: true }).fill('00199999999');
         await next();
         await page.getByRole('status').filter({ hasText: 'No encontramos' }).waitFor();
         assert(!(await page.locator('body').innerText()).includes(member.lastName));
-        await page.getByLabel('Cedula', { exact: true }).fill(member.documentId);
+        await page.getByLabel('Cédula', { exact: true }).fill(member.documentId);
       }
       await next();
       await heading('Confirma tu nombre').waitFor();
-      await page.getByRole('button', { name: 'Si, soy yo', exact: true }).click();
-      await heading('Telefono personal').waitFor();
+      await page.getByRole('button', { name: 'Sí, soy yo', exact: true }).click();
+      await heading('Teléfono personal').waitFor();
+      assert.equal(await page.locator('[id$="-help"]').count(), 0);
+      assert.equal(await page.getByText('Debe contener exactamente 10 números.', { exact: true }).count(), 0);
       assert.equal(await page.locator('form input:visible').count(), 1);
       const identity = page.getByRole('complementary', { name: 'Socio validado' });
       assert((await identity.innerText()).includes(member.documentId));
       assert((await identity.innerText()).includes(member.employeeNumber));
       await next();
       await page.getByRole('alert').filter({ hasText: 'obligatorio' }).waitFor();
-      await page.getByLabel('Telefono personal', { exact: true }).fill('8095551234');
+      await page.getByLabel('Teléfono personal', { exact: true }).fill('8095551234');
       await next();
-      await heading('Tu telefono personal tiene WhatsApp?').waitFor();
-      await page.getByRole('button', { name: 'Atras', exact: true }).click();
-      assert.equal(await page.getByLabel('Telefono personal', { exact: true }).inputValue(), '8095551234');
-      await page.getByLabel('Telefono personal', { exact: true }).fill('8095551235');
+      await heading('¿Tu teléfono personal tiene WhatsApp?').waitFor();
+      await page.getByRole('button', { name: 'Atrás', exact: true }).click();
+      assert.equal(await page.getByLabel('Teléfono personal', { exact: true }).inputValue(), '8095551234');
+      await page.getByLabel('Teléfono personal', { exact: true }).fill('8095551235');
       await page.screenshot({ path: 'tmp/data-update-questions/phone-' + viewport.width + '-' + mode + '.png', fullPage: true });
       await next();
       await page.locator('input[name=whatsappMode][value=' + mode + ']').check();
@@ -86,38 +96,42 @@ async function main() {
         await page.getByLabel('WhatsApp personal', { exact: true }).fill('8495551234');
         await next();
       }
-      await heading('Correo electronico personal').waitFor();
-      await page.getByLabel('Correo electronico personal', { exact: true }).fill('prueba@edesur.com.do');
+      await heading('Correo electrónico personal').waitFor();
+      await page.getByLabel('Correo electrónico personal', { exact: true }).fill('prueba@edesur.com.do');
       await next();
       await page.getByRole('alert').filter({ hasText: 'no el institucional' }).waitFor();
-      await page.getByLabel('Correo electronico personal', { exact: true }).fill('prueba@example.com');
+      await page.getByLabel('Correo electrónico personal', { exact: true }).fill('prueba@example.com');
       await next();
       await page.getByLabel('Contacto de emergencia', { exact: true }).fill('MARIA PEREZ');
       await next();
-      await page.getByLabel('Telefono emergencia', { exact: true }).fill('8295551234');
+      await page.getByLabel('Teléfono de emergencia', { exact: true }).fill('8295551234');
       await next();
-      await page.getByLabel('Relacion', { exact: true }).selectOption('FAMILIAR');
+      await page.getByLabel('Relación', { exact: true }).selectOption('FAMILIAR');
       await next();
       await heading('Zona de residencia').waitFor();
       await page.getByLabel('Zona de residencia', { exact: true }).selectOption('SUR');
       await next();
-      await heading('Revisa tu actualizacion').waitFor();
-      await page.getByRole('button', { name: 'Editar correo electronico personal', exact: true }).click();
-      await page.getByLabel('Correo electronico personal', { exact: true }).fill('editado@example.com');
+      await heading('Revisa tu actualización').waitFor();
+      await page.getByRole('button', { name: 'Editar correo electrónico personal', exact: true }).click();
+      await page.getByLabel('Correo electrónico personal', { exact: true }).fill('editado@example.com');
       await page.getByRole('button', { name: 'Volver al resumen', exact: true }).click();
-      await heading('Revisa tu actualizacion').waitFor();
+      await heading('Revisa tu actualización').waitFor();
       assert(await page.getByText('editado@example.com', { exact: true }).isVisible());
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.waitForFunction(() => {
+        const bar = document.querySelector('[role=progressbar]');
+        return bar && bar.firstElementChild.getBoundingClientRect().width >= bar.getBoundingClientRect().width - 0.5;
+      });
       await page.screenshot({ path: 'tmp/data-update-questions/review-' + viewport.width + '-' + mode + '.png', fullPage: true });
-      await page.getByRole('button', { name: 'Enviar actualizacion', exact: true }).click();
-      await page.getByRole('alert').filter({ hasText: 'Prueba de conexion' }).waitFor();
-      await page.getByRole('button', { name: 'Enviar actualizacion', exact: true }).evaluate(button => { button.click(); button.click(); });
-      await heading('Actualizacion recibida').waitFor();
+      await page.getByRole('button', { name: 'Enviar actualización', exact: true }).click();
+      await page.getByRole('alert').filter({ hasText: 'Prueba de conexión' }).waitFor();
+      await page.getByRole('button', { name: 'Enviar actualización', exact: true }).evaluate(button => { button.click(); button.click(); });
+      await heading('Actualización recibida').waitFor();
       assert.equal(attempts, 2);
       assert.equal(await page.getByRole('button', { name: 'Continuar', exact: true }).count(), 0);
       assert.equal(await page.locator('form').count(), 0);
       await page.reload();
-      await heading('Actualizacion recibida').waitFor();
+      await heading('Actualización recibida').waitFor();
       assert.equal(await page.locator('form').count(), 0);
       const submission = await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: member.id } });
       assert.equal(await db.memberDataUpdateSubmission.count({ where: { memberDirectoryId: member.id } }), 1);

@@ -7,7 +7,7 @@ import { completedDataUpdate, createDataUpdateProof, dataUpdateRateLimit } from 
 
 export async function POST(request: NextRequest) {
   try {
-    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualizacion en esta sesion.", code: "COMPLETED" }, { status: 409 });
+    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualización en esta sesión.", code: "COMPLETED" }, { status: 409 });
     const limited = await dataUpdateRateLimit(request, "lookup");
     if (limited) return limited;
     const payload = await request.json();
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existing = await prisma.memberDataUpdateSubmission.findFirst({ where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] }, select: { id: true } });
-    if (existing) return NextResponse.json({ error: "Este socio ya tiene una actualizacion registrada.", code: "ALREADY_SUBMITTED" }, { status: 409 });
+    if (existing) return NextResponse.json({ error: "Este socio ya tiene una actualización registrada.", code: "ALREADY_SUBMITTED" }, { status: 409 });
 
     return NextResponse.json({
       found: true,
