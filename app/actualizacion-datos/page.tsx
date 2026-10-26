@@ -70,7 +70,7 @@ export default async function DataUpdateAdminPage() {
         }))}
         updates={updates.map((row) => ({
           id: row.id,
-          createdAt: row.createdAt.toLocaleString("es-DO"),
+          createdAt: row.createdAt.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }),
           companyName: row.enrollmentCompany.name,
           name: `${row.memberDirectory.firstName} ${row.memberDirectory.lastName}`,
           personalPhone: row.personalPhone,
