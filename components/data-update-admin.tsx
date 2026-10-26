@@ -1,10 +1,13 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
-import { ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Upload, Users, X } from "lucide-react";
+import { BarChart3, ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Upload, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
 import { ExportExcelButton } from "@/components/export-excel-button";
+import { CompanyMultiFilter, MultiSelectFilter } from "@/components/company-multi-filter";
+import { DataUpdateIndicators, DataUpdatePagination } from "@/components/data-update-tracking";
+import { RefreshDataButton } from "@/components/data-refresh";
 
 type EnrollmentCompanyRow = {
   id: string;
@@ -25,6 +28,10 @@ type MemberRow = {
 
 type UpdateRow = {
   id: string;
+  memberId: string;
+  documentId: string | null;
+  employeeNumber: string | null;
+  registeredAt: string;
   createdAt: string;
   companyName: string;
   name: string;
@@ -90,9 +97,33 @@ export function DataUpdateAdmin({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadCompanyId, setUploadCompanyId] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"link" | "texts" | "members" | "updates">("link");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "link" | "texts" | "members" | "updates">("dashboard");
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [memberStatuses, setMemberStatuses] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [localQuestions, setLocalQuestions] = useState<DataUpdateQuestion[]>(questions);
   const configuredCompanies = enrollmentCompanies.filter((company) => company.dataUpdateEnabled && company.dataUpdateLookupField);
+  const companyOptions: [string, string][] = [...new Set([...members.map((row) => row.companyName), ...updates.map((row) => row.companyName)])].sort((a, b) => a.localeCompare(b, "es")).map((name) => [name, name]);
+  const matchesCompany = (row: { companyName: string }) => !companies.length || companies.includes(row.companyName);
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matchesSearch = (values: (string | null)[]) => normalize(values.filter(Boolean).join(" ")).includes(normalize(search.trim()));
+  const updatedIds = new Set(updates.map((row) => row.memberId));
+  const visibleMembers = members.filter((row) => matchesCompany(row) && matchesSearch([row.firstName, row.lastName, row.documentId, row.employeeNumber]) && (!memberStatuses.length || memberStatuses.includes(updatedIds.has(row.id) ? "updated" : "pending")));
+  const visibleUpdates = updates.filter((row) => matchesCompany(row) && matchesSearch([row.name, row.documentId, row.employeeNumber, row.personalEmail, row.personalPhone]));
+  const pageTotal = activeTab === "members" ? visibleMembers.length : visibleUpdates.length;
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(pageTotal / pageSize)));
+  const pagedMembers = visibleMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagedUpdates = visibleUpdates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagination = <DataUpdatePagination total={pageTotal} page={currentPage} size={pageSize} onPage={setPage} onSize={(value) => { setPageSize(value); setPage(1); }} />;
+  function selectIndicator(company: string, status: string) {
+    setCompanies(company ? [company] : []);
+    setMemberStatuses(status === "all" ? [] : [status]);
+    setSearch("");
+    setPage(1);
+    setActiveTab("members");
+  }
 
   async function uploadMembers(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -210,6 +241,7 @@ export function DataUpdateAdmin({
     <div className="grid gap-5">
       <div className="flex flex-wrap gap-2">
         {[
+          { key: "dashboard", label: "Dashboard", icon: BarChart3 },
           { key: "link", label: "Link publico", icon: Link2 },
           { key: "texts", label: "Textos y pregunta", icon: TextCursorInput },
           { key: "members", label: "Base de socios", icon: Users },
@@ -221,7 +253,8 @@ export function DataUpdateAdmin({
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              onClick={() => { setActiveTab(tab.key as typeof activeTab); setPage(1); }}
+              aria-pressed={active}
               className={`inline-flex h-11 items-center justify-center gap-2 rounded-md border px-4 text-sm font-black transition ${
                 active
                   ? "border-emerald-700 bg-emerald-700 text-white"
@@ -234,6 +267,14 @@ export function DataUpdateAdmin({
           );
         })}
       </div>
+
+      {["dashboard", "members", "updates"].includes(activeTab) && <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <CompanyMultiFilter options={companyOptions} value={companies} onChange={(value) => { setCompanies(value); setPage(1); }} />
+        {activeTab !== "dashboard" && <label className="text-sm font-semibold">Buscar<input aria-label="Buscar socio" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className={`mt-1 ${fieldClass}`} type="search" /></label>}
+        {activeTab === "members" && <MultiSelectFilter label="Actualización" allLabel="Todos los estados" options={[["updated", "Actualizados"], ["pending", "Pendientes"]]} value={memberStatuses} onChange={(value) => { setMemberStatuses(value); setPage(1); }} />}
+      </div>}
+
+      {activeTab === "dashboard" && <DataUpdateIndicators members={members.filter(matchesCompany)} updates={updates.filter(matchesCompany)} onSelect={selectIndicator} />}
 
       {activeTab === "link" ? (
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -447,16 +488,18 @@ export function DataUpdateAdmin({
       ) : null}
 
       {activeTab === "members" ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="min-w-0 border-t border-slate-200 bg-white py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-black text-slate-950">Base de socios</h2>
+          <RefreshDataButton />
           <ExportExcelButton
-            rows={members.map((row) => ({
+            rows={visibleMembers.map((row) => ({
               Empresa: row.companyName,
               Nombres: row.firstName,
               Apellidos: row.lastName,
               Cedula: row.documentId,
-              Empleado: row.employeeNumber
+              Empleado: row.employeeNumber,
+              Actualizacion: updatedIds.has(row.id) ? "Actualizado" : "Pendiente"
             }))}
             fileName="base-socios"
           />
@@ -491,21 +534,25 @@ export function DataUpdateAdmin({
                 <th className="px-3 py-2">Apellidos</th>
                 <th className="px-3 py-2">Cedula</th>
                 <th className="px-3 py-2">Empleado</th>
+                <th className="px-3 py-2">Actualización</th>
               </tr>
             </thead>
             <tbody>
-              {members.map((row) => (
+              {pagedMembers.map((row) => (
                 <tr key={row.id} className="border-t border-slate-100">
                   <td className="px-3 py-2">{row.companyName}</td>
                   <td className="px-3 py-2 font-semibold">{row.firstName}</td>
                   <td className="px-3 py-2">{row.lastName}</td>
                   <td className="px-3 py-2">{row.documentId}</td>
                   <td className="px-3 py-2">{row.employeeNumber}</td>
+                  <td className="px-3 py-2">{updatedIds.has(row.id) ? "Actualizado" : "Pendiente"}</td>
                 </tr>
               ))}
+              {!visibleMembers.length && <tr><td colSpan={6} className="p-6 text-center text-slate-500">No hay socios que coincidan con los filtros.</td></tr>}
             </tbody>
           </table>
         </div>
+        {pagination}
       </section>
       ) : null}
 
@@ -572,14 +619,17 @@ export function DataUpdateAdmin({
       ) : null}
 
       {activeTab === "updates" ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="min-w-0 border-t border-slate-200 bg-white py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-black text-slate-950">Solicitudes recibidas</h2>
+          <RefreshDataButton />
           <ExportExcelButton
-            rows={updates.map((row) => ({
+            rows={visibleUpdates.map((row) => ({
               Fecha: row.createdAt,
               Empresa: row.companyName,
               Nombre: row.name,
+              Cedula: row.documentId,
+              Empleado: row.employeeNumber,
               Telefono: row.personalPhone,
               WhatsApp: row.whatsappPhone || "No tiene WhatsApp",
               Correo: row.personalEmail,
@@ -597,6 +647,8 @@ export function DataUpdateAdmin({
                 <th className="px-3 py-2">Fecha</th>
                 <th className="px-3 py-2">Empresa</th>
                 <th className="px-3 py-2">Nombre</th>
+                <th className="px-3 py-2">Cédula</th>
+                <th className="px-3 py-2">Empleado</th>
                 <th className="px-3 py-2">Telefono</th>
                 <th className="px-3 py-2">WhatsApp</th>
                 <th className="px-3 py-2">Correo</th>
@@ -606,11 +658,13 @@ export function DataUpdateAdmin({
               </tr>
             </thead>
             <tbody>
-              {updates.map((row) => (
+              {pagedUpdates.map((row) => (
                 <tr key={row.id} className="border-t border-slate-100">
                   <td className="px-3 py-2">{row.createdAt}</td>
                   <td className="px-3 py-2">{row.companyName}</td>
                   <td className="px-3 py-2 font-semibold">{row.name}</td>
+                  <td className="px-3 py-2">{row.documentId}</td>
+                  <td className="px-3 py-2">{row.employeeNumber}</td>
                   <td className="px-3 py-2">{row.personalPhone}</td>
                   <td className="px-3 py-2">{row.whatsappPhone || "No tiene WhatsApp"}</td>
                   <td className="px-3 py-2">{row.personalEmail}</td>
@@ -619,9 +673,11 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.status}</td>
                 </tr>
               ))}
+              {!visibleUpdates.length && <tr><td colSpan={11} className="p-6 text-center text-slate-500">No hay solicitudes que coincidan con los filtros.</td></tr>}
             </tbody>
           </table>
         </div>
+        {pagination}
       </section>
       ) : null}
     </div>

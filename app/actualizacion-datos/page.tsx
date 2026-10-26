@@ -18,13 +18,11 @@ export default async function DataUpdateAdminPage() {
     getDataUpdateQuestions(),
     prisma.memberDirectory.findMany({
       include: { enrollmentCompany: true },
-      orderBy: { createdAt: "desc" },
-      take: 100
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }]
     }),
     prisma.memberDataUpdateSubmission.findMany({
       include: { enrollmentCompany: true, memberDirectory: true },
-      orderBy: { createdAt: "desc" },
-      take: 100
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }]
     }),
     prisma.enrollmentCompany.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } })
   ]);
@@ -70,6 +68,10 @@ export default async function DataUpdateAdminPage() {
         }))}
         updates={updates.map((row) => ({
           id: row.id,
+          memberId: row.memberDirectoryId,
+          documentId: row.memberDirectory.documentId,
+          employeeNumber: row.memberDirectory.employeeNumber,
+          registeredAt: row.createdAt.toISOString(),
           createdAt: row.createdAt.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }),
           companyName: row.enrollmentCompany.name,
           name: `${row.memberDirectory.firstName} ${row.memberDirectory.lastName}`,
