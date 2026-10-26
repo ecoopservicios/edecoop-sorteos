@@ -37,7 +37,12 @@ export async function POST(request: NextRequest) {
     if (!["SAME", "OTHER", "NONE"].includes(whatsappMode)) return jsonError("Indica si tienes WhatsApp.", 422);
     const whatsappPhone = whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? personalPhone : tenDigitContactPhone(String(payload.whatsappPhone || ""), "WhatsApp personal");
     const personalEmail = normalizePersonalEmail(String(payload.personalEmail || ""));
-    const emergencyContactName = validatePersonName(String(payload.emergencyContactName || ""), "Contacto de emergencia");
+    const splitEmergencyContact = payload.emergencyContactFirstName !== undefined || payload.emergencyContactLastName !== undefined;
+    const emergencyContactFirstName = splitEmergencyContact ? validatePersonName(String(payload.emergencyContactFirstName || ""), "Nombre del contacto de emergencia") : null;
+    const emergencyContactLastName = splitEmergencyContact ? validatePersonName(String(payload.emergencyContactLastName || ""), "Apellido del contacto de emergencia") : null;
+    const emergencyContactName = splitEmergencyContact
+      ? `${emergencyContactFirstName} ${emergencyContactLastName}`
+      : validatePersonName(String(payload.emergencyContactName || ""), "Contacto de emergencia");
     const emergencyContactPhone = tenDigitContactPhone(String(payload.emergencyContactPhone || ""), "Teléfono de emergencia");
     const relationValues = Object.values(EmergencyContactRelation);
     const relation = String(payload.emergencyContactRelation || "");
@@ -62,6 +67,10 @@ export async function POST(request: NextRequest) {
       cleanResponses[question.fieldKey] = value;
     }
     cleanResponses.whatsappPreference = whatsappMode;
+    if (splitEmergencyContact) {
+      cleanResponses.emergencyContactFirstName = emergencyContactFirstName!;
+      cleanResponses.emergencyContactLastName = emergencyContactLastName!;
+    }
 
     const submission = await prisma.$transaction(async tx => {
       // Serialize submissions for the same person, including requests from different tabs or replicas.

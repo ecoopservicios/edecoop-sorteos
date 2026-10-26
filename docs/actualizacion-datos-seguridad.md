@@ -1,6 +1,7 @@
 # Actualizacion de datos: flujo publico
 
-- Una pregunta por pantalla: empresa, consulta, cedula de validacion si se consulta por empleado, nombre, telefono, disponibilidad de WhatsApp, otro telefono de WhatsApp si corresponde, correo, contacto de emergencia, telefono de emergencia, relacion, preguntas personalizadas y resumen.
+- Una pregunta por pantalla: empresa, consulta, cedula de validacion si se consulta por empleado, telefono, disponibilidad de WhatsApp, otro telefono de WhatsApp si corresponde, correo, contacto de emergencia, telefono de emergencia, relacion, preguntas personalizadas y resumen. No hay pantalla de confirmacion "soy yo"; la identidad validada queda visible al pasar al telefono.
+- Contacto de emergencia muestra Nombre y Apellido en la misma pantalla. Se validan ambos por separado y se conservan en customResponses.emergencyContactFirstName y customResponses.emergencyContactLastName. El nombre completo se compone en el servidor para mantener compatibles el panel, las exportaciones y los registros anteriores. El servidor sigue aceptando el campo completo de clientes abiertos antes de este cambio.
 - La consulta por empleado no devuelve identidad hasta validar la cedula de la misma fila. La consulta directa por cedula puede mostrar el nombre sin solicitar otro identificador.
 - El servidor firma una prueba de identidad que vence a las dos horas. El envio comprueba socio, consulta y cedula contra esa prueba y la base actual.
 - Un envio por socio, incluyendo registros anteriores y otras filas con la misma cedula. Un bloqueo transaccional de PostgreSQL evita duplicados simultaneos entre replicas.

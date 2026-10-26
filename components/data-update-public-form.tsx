@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, LoaderCircle, Pencil, Search, Send, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Pencil, Search, Send } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
@@ -52,13 +52,12 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const stages = useMemo<Stage[]>(() => {
     const question = (key: string): Stage[] => {
       const q = questions.find(q => q.fieldKey === key);
-      return q ? [{ key, title: q.label, question: q }] : [];
+      return q ? [{ key, title: key === "emergencyContactName" ? "Contacto de emergencia" : q.label, question: q }] : [];
     };
     return [
       { key: "company", title: "Selecciona tu empresa" },
       { key: "lookup", title: selected?.lookupField === "DOCUMENT_ID" ? "Consulta con tu cédula" : "Consulta con tu número de empleado" },
       ...(selected?.lookupField === "EMPLOYEE_NUMBER" ? [{ key: "document", title: "Valida tu cédula" }] : []),
-      { key: "confirm", title: "Confirma tu nombre" },
       ...question("personalPhone"),
       { key: "whatsapp", title: "¿Tu teléfono personal tiene WhatsApp?" },
       ...(whatsappMode === "OTHER" ? question("whatsappPhone") : []),
@@ -72,7 +71,11 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   }, [questions, selected?.lookupField, whatsappMode]);
   const step = Math.max(0, stages.findIndex(s => s.key === stageKey));
   const current = stages[step];
-  const effective: Record<string, string> = { ...values, whatsappPhone: whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? values.personalPhone || "" : values.whatsappPhone || "" };
+  const effective: Record<string, string> = {
+    ...values,
+    emergencyContactName: [values.emergencyContactFirstName, values.emergencyContactLastName].filter(Boolean).join(" ").trim().replace(/\s+/g, " "),
+    whatsappPhone: whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? values.personalPhone || "" : values.whatsappPhone || ""
+  };
   useEffect(() => { if (stageKey !== "company" || done) heading.current?.focus(); }, [stageKey, done]);
   useEffect(() => { setReady(true); }, []);
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
@@ -82,14 +85,22 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     if (stage.key === "lookup" && !(selected?.lookupField === "DOCUMENT_ID" ? /^\d{11}$/ : /^\d{1,5}$/).test(lookupValue)) return selected?.lookupField === "DOCUMENT_ID" ? "Ingresa los 11 números de tu cédula." : "Ingresa tu número de empleado (hasta 5 números).";
     if (stage.key === "document" && !/^\d{11}$/.test(documentId)) return "Ingresa los 11 números de tu cédula.";
     if (stage.key === "whatsapp" && !whatsappMode) return "Selecciona una opción de WhatsApp.";
+    if (stage.key === "emergencyContactName") {
+      if (!/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim())) return "Ingresa el nombre del contacto de emergencia (al menos dos letras).";
+      if (!/^[A-Z ]{2,}$/.test((values.emergencyContactLastName || "").trim())) return "Ingresa el apellido del contacto de emergencia (al menos dos letras).";
+    }
     return stage.question ? questionError(stage.question, effective[stage.key] || "") : "";
   }
-  function focusField() { requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-current-field]")?.focus()); }
+  function focusField(name?: string) { requestAnimationFrame(() => document.querySelector<HTMLElement>(name ? `[name="${name}"]` : "[data-current-field]")?.focus()); }
   async function advance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current) return;
     const invalid = current.key === "review" ? stages.find(s => stageError(s)) : stageError(current) ? current : undefined;
-    if (invalid) { setStageKey(invalid.key); setError(stageError(invalid)); focusField(); return; }
+    if (invalid) {
+      setStageKey(invalid.key); setError(stageError(invalid));
+      focusField(invalid.key === "emergencyContactName" ? (/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim()) ? "emergencyContactLastName" : "emergencyContactFirstName") : undefined);
+      return;
+    }
     if (!["lookup", "document", "review"].includes(current.key)) {
       if (editing.current) {
         const incomplete = stages.find(s => s.question && stageError(s));
@@ -113,7 +124,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         if (data.requiresDocument) { goTo("document"); return; }
         if (!data.found) { setNotFound(data); return; }
         if (member?.id !== data.member.id) { setValues({}); setWhatsappMode(""); }
-        setMember(data.member); setVerificationToken(data.verificationToken); goTo("confirm");
+        setMember(data.member); setVerificationToken(data.verificationToken); goTo("personalPhone");
       } else if (member) {
         const customResponses = Object.fromEntries(questions.filter(q => !q.isSystem).map(q => [q.fieldKey, effective[q.fieldKey] || ""]));
         const response = await fetch("/api/actualizacion-datos/solicitudes", {
@@ -140,7 +151,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     <p role="status" className="mt-4 leading-relaxed text-slate-600">{done}</p>
     {member ? <p className="mt-6 font-bold text-slate-900">{member.fullName}</p> : null}
   </section>;
-  const identityVisible = member && step > stages.findIndex(s => s.key === "confirm");
+  const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");
   return <section className="mx-auto w-full max-w-2xl">
     <header className="flex items-center gap-4 border-b border-slate-200 pb-5">
@@ -170,15 +181,13 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
           onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else setLookupValue(value); setVerificationToken(""); setError(""); setNotFound(null); }}
           className={inputClass} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)} />
       </div> : null}
-      {current.key === "confirm" && member ? <div>
-        <ShieldCheck size={32} className="mb-4 text-emerald-700" aria-hidden="true" />
-        <p className="mt-4 break-words text-xl font-black text-slate-950">{member.fullName}</p>
-        <dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200 text-sm">{[["Empresa", member.companyName], ["Cédula", member.documentId], ["Número de empleado", member.employeeNumber]].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-2 py-3"><dt className="text-slate-500">{label}</dt><dd className="break-all font-semibold text-slate-900">{value || "No registrado"}</dd></div>)}</dl>
-      </div> : null}
       {current.key === "whatsapp" ? <fieldset><legend className="sr-only">Disponibilidad de WhatsApp</legend>
         <div className="divide-y divide-slate-200 border-y border-slate-200">{([["SAME", "Sí, uso este mismo número"], ["OTHER", "Uso WhatsApp con otro número"], ["NONE", "No tengo WhatsApp"]] as const).map(([value, label]) => <label key={value} className="flex min-h-14 cursor-pointer items-center gap-3 py-3 text-base text-slate-800"><input data-current-field type="radio" name="whatsappMode" value={value} checked={whatsappMode === value} onChange={() => { setWhatsappMode(value); setError(""); }} className="h-5 w-5 shrink-0 accent-emerald-700" />{label}</label>)}</div>
       </fieldset> : null}
-      {current.question ? <QuestionField key={current.key} question={current.question} value={effective[current.key] || ""} onChange={value => changeValue(current.key, value)} invalid={Boolean(error)} /> : null}
+      {current.key === "emergencyContactName" && current.question ? <div className="grid gap-5 sm:grid-cols-2">
+        <QuestionField question={{ ...current.question, fieldKey: "emergencyContactFirstName", label: "Nombre", type: "TEXT" }} value={values.emergencyContactFirstName || ""} onChange={value => changeValue("emergencyContactFirstName", value)} invalid={Boolean(error) && !/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim())} showLabel />
+        <QuestionField question={{ ...current.question, fieldKey: "emergencyContactLastName", label: "Apellido", type: "TEXT" }} value={values.emergencyContactLastName || ""} onChange={value => changeValue("emergencyContactLastName", value)} invalid={Boolean(error) && !/^[A-Z ]{2,}$/.test((values.emergencyContactLastName || "").trim())} showLabel />
+      </div> : current.question ? <QuestionField key={current.key} question={current.question} value={effective[current.key] || ""} onChange={value => changeValue(current.key, value)} invalid={Boolean(error)} /> : null}
       {current.key === "review" ? <dl className="divide-y divide-slate-200 border-y border-slate-200">
         {reviewQuestions.map(stage => <ReviewRow key={stage.key} label={stage.title} value={effective[stage.key] || "No indicado"} onEdit={() => { editing.current = true; goTo(stage.key); }} disabled={loading} />)}
         <ReviewRow label="WhatsApp" value={whatsappMode === "NONE" ? "No tiene WhatsApp" : effective.whatsappPhone} onEdit={() => { editing.current = true; goTo("whatsapp"); }} disabled={loading} />
@@ -186,11 +195,11 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       {notFound ? <div role="status" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-4"><p className="font-bold text-amber-950">{notFound.message}</p><p className="mt-2 text-sm text-amber-900">{notFound.supportWhatsapp}</p><a href={notFound.whatsappUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center font-bold text-emerald-800 underline">Contactar por WhatsApp</a></div> : null}
       {error ? <p id="data-update-error" role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-sm font-medium text-red-800">{error}</p> : null}
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
-        {step > 0 ? <button type="button" disabled={loading} onClick={() => { editing.current = false; goTo(current.key === "confirm" ? "lookup" : stages[step - 1].key); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />{current.key === "confirm" ? "No soy yo" : "Atrás"}</button> : <span />}
+        {step > 0 ? <button type="button" disabled={loading} onClick={() => { editing.current = false; goTo(stages[step - 1].key); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
         <button type="submit" disabled={loading || (current.key === "company" && !companies.length)} className={primaryClass}>
-          {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : current.key === "confirm" ? <Check size={18} /> : null}
-          {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : current.key === "confirm" ? "Sí, soy yo" : editing.current ? "Volver al resumen" : "Continuar"}
-          {!loading && !["review", "lookup", "document", "confirm"].includes(current.key) ? <ArrowRight size={18} /> : null}
+          {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : null}
+          {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : editing.current ? "Volver al resumen" : "Continuar"}
+          {!loading && !["review", "lookup", "document"].includes(current.key) ? <ArrowRight size={18} /> : null}
         </button>
       </div>
       </fieldset>
@@ -202,10 +211,10 @@ function ReviewRow({ label, value, onEdit, disabled }: { label: string; value: s
   return <div className="flex items-start justify-between gap-4 py-4"><div className="min-w-0"><dt className="text-sm text-slate-500">{label}</dt><dd className="mt-1 break-words font-medium text-slate-900 [overflow-wrap:anywhere]">{value}</dd></div><button type="button" onClick={onEdit} disabled={disabled} aria-label={`Editar ${label.toLowerCase()}`} title={`Editar ${label.toLowerCase()}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"><Pencil size={18} /></button></div>;
 }
 
-function QuestionField({ question, value, onChange, invalid }: { question: DataUpdateQuestion; value: string; onChange: (value: string) => void; invalid: boolean }) {
+function QuestionField({ question, value, onChange, invalid, showLabel = false }: { question: DataUpdateQuestion; value: string; onChange: (value: string) => void; invalid: boolean; showLabel?: boolean }) {
   const id = `field-${question.fieldKey}`;
   const shared = { id, name: question.fieldKey, className: inputClass, "data-current-field": true, "aria-invalid": invalid, "aria-describedby": invalid ? "data-update-error" : undefined };
-  return <div><label htmlFor={id} className="sr-only">{question.label}</label>
+  return <div><label htmlFor={id} className={showLabel ? "mb-2 block text-sm font-bold text-slate-700" : "sr-only"}>{question.label}</label>
     {question.type === "SELECT" ? <select {...shared} value={value} onChange={event => onChange(event.target.value)}><option value="">Seleccione</option>{question.options?.map(option => <option key={option} value={option}>{option}</option>)}</select> :
       <input {...shared} value={value} type={question.type === "EMAIL" ? "email" : question.type === "PHONE" ? "tel" : "text"} inputMode={question.type === "PHONE" || question.type === "NUMBER" ? "numeric" : question.type === "EMAIL" ? "email" : "text"} autoComplete={question.fieldKey === "personalEmail" ? "email" : question.fieldKey === "personalPhone" ? "tel-national" : "off"} maxLength={question.type === "PHONE" ? 10 : undefined}
         onChange={event => { let value = event.target.value; if (question.type === "PHONE" || question.type === "NUMBER") value = value.replace(/\D/g, "").slice(0, question.type === "PHONE" ? 10 : undefined); else if (question.type === "TEXT") value = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z ]/g, ""); onChange(value); }} />}
