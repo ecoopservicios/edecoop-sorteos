@@ -101,6 +101,7 @@ export function DataUpdateAdmin({
   const [companies, setCompanies] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [memberStatuses, setMemberStatuses] = useState<string[]>([]);
+  const [updateStatuses, setUpdateStatuses] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [localQuestions, setLocalQuestions] = useState<DataUpdateQuestion[]>(questions);
@@ -111,19 +112,12 @@ export function DataUpdateAdmin({
   const matchesSearch = (values: (string | null)[]) => normalize(values.filter(Boolean).join(" ")).includes(normalize(search.trim()));
   const updatedIds = new Set(updates.map((row) => row.memberId));
   const visibleMembers = members.filter((row) => matchesCompany(row) && matchesSearch([row.firstName, row.lastName, row.documentId, row.employeeNumber]) && (!memberStatuses.length || memberStatuses.includes(updatedIds.has(row.id) ? "updated" : "pending")));
-  const visibleUpdates = updates.filter((row) => matchesCompany(row) && matchesSearch([row.name, row.documentId, row.employeeNumber, row.personalEmail, row.personalPhone]));
+  const visibleUpdates = updates.filter((row) => matchesCompany(row) && matchesSearch([row.name, row.documentId, row.employeeNumber, row.personalEmail, row.personalPhone]) && (!updateStatuses.length || updateStatuses.includes(row.status)));
   const pageTotal = activeTab === "members" ? visibleMembers.length : visibleUpdates.length;
   const currentPage = Math.min(page, Math.max(1, Math.ceil(pageTotal / pageSize)));
   const pagedMembers = visibleMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pagedUpdates = visibleUpdates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pagination = <DataUpdatePagination total={pageTotal} page={currentPage} size={pageSize} onPage={setPage} onSize={(value) => { setPageSize(value); setPage(1); }} />;
-  function selectIndicator(company: string, status: string) {
-    setCompanies(company ? [company] : []);
-    setMemberStatuses(status === "all" ? [] : [status]);
-    setSearch("");
-    setPage(1);
-    setActiveTab("members");
-  }
 
   async function uploadMembers(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -271,10 +265,11 @@ export function DataUpdateAdmin({
       {["dashboard", "members", "updates"].includes(activeTab) && <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <CompanyMultiFilter options={companyOptions} value={companies} onChange={(value) => { setCompanies(value); setPage(1); }} />
         {activeTab !== "dashboard" && <label className="text-sm font-semibold">Buscar<input aria-label="Buscar socio" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className={`mt-1 ${fieldClass}`} type="search" /></label>}
-        {activeTab === "members" && <MultiSelectFilter label="Actualización" allLabel="Todos los estados" options={[["updated", "Actualizados"], ["pending", "Pendientes"]]} value={memberStatuses} onChange={(value) => { setMemberStatuses(value); setPage(1); }} />}
+        {activeTab === "members" && <MultiSelectFilter label="Estado" allLabel="Todos los estados" options={[["updated", "Actualizados"], ["pending", "Pendientes"]]} value={memberStatuses} onChange={(value) => { setMemberStatuses(value); setPage(1); }} />}
+        {activeTab === "updates" && <MultiSelectFilter label="Estado" allLabel="Todos los estados" options={[["RECEIVED", "Recibidos"], ["REVIEWED", "Revisados"], ["APPLIED", "Aplicados"], ["REJECTED", "Rechazados"]]} value={updateStatuses} onChange={(value) => { setUpdateStatuses(value); setPage(1); }} />}
       </div>}
 
-      {activeTab === "dashboard" && <DataUpdateIndicators members={members.filter(matchesCompany)} updates={updates.filter(matchesCompany)} onSelect={selectIndicator} />}
+      {activeTab === "dashboard" && <DataUpdateIndicators members={members.filter(matchesCompany)} updates={updates.filter(matchesCompany)} />}
 
       {activeTab === "link" ? (
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

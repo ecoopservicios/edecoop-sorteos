@@ -4,20 +4,19 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { summarizeDataUpdates, type TrackingMember, type TrackingUpdate } from "@/lib/data-update-tracking";
 import { RefreshDataButton } from "@/components/data-refresh";
 
-export function DataUpdateIndicators({ members, updates, onSelect }: { members: TrackingMember[]; updates: TrackingUpdate[]; onSelect: (company: string, status: string) => void }) {
+export function DataUpdateIndicators({ members, updates }: { members: TrackingMember[]; updates: TrackingUpdate[] }) {
   const rows = summarizeDataUpdates(members, updates);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
   const updated = rows.reduce((sum, row) => sum + row.updated, 0);
   const today = rows.reduce((sum, row) => sum + row.today, 0);
-  const countButton = (value: number, company: string, status: string) => <button type="button" onClick={() => onSelect(company, status)} className="min-h-11 underline decoration-dotted underline-offset-4 hover:text-emerald-800" title={`Ver ${status === "updated" ? "actualizados" : status === "pending" ? "pendientes" : "socios"}${company ? ` de ${company}` : ""}`}>{value.toLocaleString("es-DO")}</button>;
   return <section className="min-w-0 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-black">Avance por empresa</h2><RefreshDataButton /></div>
     <dl className="grid grid-cols-2 gap-4 border-y border-slate-200 py-4 lg:grid-cols-4">
-      {[{ label: "Socios", value: total, status: "all" }, { label: "Actualizados", value: updated, status: "updated" }, { label: "Pendientes", value: total - updated, status: "pending" }].map((item) => <div key={item.label}><dt className="text-sm text-slate-600">{item.label}</dt><dd className="text-2xl font-bold">{countButton(item.value, "", item.status)}</dd></div>)}
+      {[{ label: "Socios", value: total }, { label: "Actualizados", value: updated }, { label: "Pendientes", value: total - updated }].map((item) => <div key={item.label}><dt className="text-sm text-slate-600">{item.label}</dt><dd className="flex min-h-11 items-center text-2xl font-bold">{item.value.toLocaleString("es-DO")}</dd></div>)}
       <div><dt className="text-sm text-slate-600">Recibidos hoy</dt><dd className="flex min-h-11 items-center text-2xl font-bold">{today}</dd></div>
     </dl>
     <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-slate-100"><tr>{["Empresa", "Socios", "Actualizados", "Pendientes", "Hoy", "Avance"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>
-      {rows.map((row) => <tr key={row.companyName} className="border-b border-slate-200"><th scope="row" className="px-3 py-2 font-semibold">{row.companyName}</th><td className="px-3">{countButton(row.total, row.companyName, "all")}</td><td className="px-3 text-emerald-800">{countButton(row.updated, row.companyName, "updated")}</td><td className="px-3 text-amber-800">{countButton(row.pending, row.companyName, "pending")}</td><td className="px-3">{row.today}</td><td className="px-3"><div className="flex items-center gap-2"><progress aria-label={`Avance de ${row.companyName}`} value={row.updated} max={row.total || 1} className="h-2 w-20 accent-emerald-700" /><span>{row.percent}%</span></div></td></tr>)}
+      {rows.map((row) => <tr key={row.companyName} className="border-b border-slate-200"><th scope="row" className="px-3 py-3 font-semibold">{row.companyName}</th><td className="px-3">{row.total.toLocaleString("es-DO")}</td><td className="px-3 text-emerald-800">{row.updated.toLocaleString("es-DO")}</td><td className="px-3 text-amber-800">{row.pending.toLocaleString("es-DO")}</td><td className="px-3">{row.today}</td><td className="px-3"><div className="flex items-center gap-2"><progress aria-label={`Avance de ${row.companyName}`} value={row.updated} max={row.total || 1} className="h-2 w-20 accent-emerald-700" /><span>{row.percent}%</span></div></td></tr>)}
       {!rows.length && <tr><td colSpan={6} className="p-6 text-center text-slate-500">No hay socios para las empresas seleccionadas.</td></tr>}
     </tbody></table></div>
   </section>;
