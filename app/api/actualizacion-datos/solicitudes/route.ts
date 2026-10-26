@@ -5,10 +5,18 @@ import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-set
 import { compareContactValue, normalizeLookupValue, normalizePersonalEmail, tenDigitContactPhone } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
+import { completedDataUpdate, dataUpdateRateLimit, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
+
+class AlreadySubmitted extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
+    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualizacion en esta sesion.", code: "COMPLETED" }, { status: 409 });
+    const limited = await dataUpdateRateLimit(request, "submit");
+    if (limited) return limited;
     const payload = await request.json();
+    const proof = readDataUpdateProof(payload.verificationToken);
+    if (!proof) return jsonError("La validacion de identidad vencio o no es valida. Vuelve a consultar tus datos.", 403);
     const memberDirectoryId = String(payload.memberDirectoryId || "");
     const member = await prisma.memberDirectory.findFirst({
       where: { id: memberDirectoryId, isActive: true },
@@ -22,17 +30,19 @@ export async function POST(request: NextRequest) {
     const lookupValue = normalizeLookupValue(String(payload.lookupValue || ""), company.dataUpdateLookupField);
     const expectedLookup = company.dataUpdateLookupField === "DOCUMENT_ID" ? member.documentId : member.employeeNumber;
     if (lookupValue !== expectedLookup) return jsonError("Los datos de validacion no coinciden.", 422);
+    if (proof.memberId !== member.id || proof.lookup !== lookupValue || proof.documentId !== member.documentId) return jsonError("La validacion de identidad no corresponde a este socio.", 403);
 
     const personalPhone = tenDigitContactPhone(String(payload.personalPhone || ""), "Telefono personal");
-    const whatsappPhone = tenDigitContactPhone(String(payload.whatsappPhone || ""), "WhatsApp personal");
+    const whatsappMode = String(payload.whatsappMode || "");
+    if (!["SAME", "OTHER", "NONE"].includes(whatsappMode)) return jsonError("Indica si tienes WhatsApp.", 422);
+    const whatsappPhone = whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? personalPhone : tenDigitContactPhone(String(payload.whatsappPhone || ""), "WhatsApp personal");
     const personalEmail = normalizePersonalEmail(String(payload.personalEmail || ""));
     const emergencyContactName = validatePersonName(String(payload.emergencyContactName || ""), "Contacto de emergencia");
     const emergencyContactPhone = tenDigitContactPhone(String(payload.emergencyContactPhone || ""), "Telefono de emergencia");
     const relationValues = Object.values(EmergencyContactRelation);
     const relation = String(payload.emergencyContactRelation || "");
-    const emergencyContactRelation = relationValues.includes(relation as EmergencyContactRelation)
-      ? (relation as EmergencyContactRelation)
-      : EmergencyContactRelation.FAMILIAR;
+    if (!relationValues.includes(relation as EmergencyContactRelation)) return jsonError("Selecciona la relacion con tu contacto de emergencia.", 422);
+    const emergencyContactRelation = relation as EmergencyContactRelation;
 
     if (personalPhone === member.personalPhone) {
       return jsonError("El telefono ingresado coincide con el que tenemos registrado. Favor ingresar su telefono movil personal actualizado.", 422);
@@ -51,35 +61,47 @@ export async function POST(request: NextRequest) {
       if (!value) continue;
       cleanResponses[question.fieldKey] = value;
     }
+    cleanResponses.whatsappPreference = whatsappMode;
 
-    const submission = await prisma.memberDataUpdateSubmission.create({
-      data: {
-        memberDirectoryId: member.id,
-        enrollmentCompanyId: member.enrollmentCompanyId,
-        lookupField: company.dataUpdateLookupField,
-        lookupValue,
-        previousPersonalPhone: member.personalPhone,
-        previousWhatsappPhone: member.whatsappPhone,
-        previousPersonalEmail: member.personalEmail,
-        personalPhone,
-        whatsappPhone,
-        personalEmail,
-        emergencyContactName,
-        emergencyContactPhone,
-        emergencyContactRelation,
-        customResponses: cleanResponses,
-        phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
-        whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
-        emailValidationStatus: compareContactValue(personalEmail, member.personalEmail)
-      }
+    const submission = await prisma.$transaction(async tx => {
+      // Serialize submissions for the same person, including requests from different tabs or replicas.
+      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `data-update-member:${member.documentId || member.id}`);
+      const existing = await tx.memberDataUpdateSubmission.findFirst({ where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] }, select: { id: true } });
+      if (existing) throw new AlreadySubmitted("Este socio ya tiene una actualizacion registrada.");
+      const created = await tx.memberDataUpdateSubmission.create({
+        data: {
+          memberDirectoryId: member.id,
+          enrollmentCompanyId: member.enrollmentCompanyId,
+          lookupField: company.dataUpdateLookupField!,
+          lookupValue,
+          previousPersonalPhone: member.personalPhone,
+          previousWhatsappPhone: member.whatsappPhone,
+          previousPersonalEmail: member.personalEmail,
+          personalPhone,
+          whatsappPhone,
+          personalEmail,
+          emergencyContactName,
+          emergencyContactPhone,
+          emergencyContactRelation,
+          customResponses: cleanResponses,
+          phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
+          whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
+          emailValidationStatus: compareContactValue(personalEmail, member.personalEmail)
+        }
+      });
+      await tx.auditLog.create({ data: { action: "MEMBER_DATA_UPDATE_SUBMITTED", entityType: "MemberDataUpdateSubmission", entityId: created.id, reason: "Actualizacion publica con identidad validada y un envio por socio.", metadata: { memberDirectoryId: member.id, whatsappMode } } });
+      return created;
     });
 
     const texts = await getDataUpdateTextSettings();
-    return NextResponse.json({
+    const response = NextResponse.json({
       submissionId: submission.id,
       message: texts.successMessage
     });
+    setDataUpdateReceipt(response, member.id);
+    return response;
   } catch (error) {
+    if (error instanceof AlreadySubmitted) return NextResponse.json({ error: error.message, code: "ALREADY_SUBMITTED" }, { status: 409 });
     return jsonError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.", 422);
   }
 }

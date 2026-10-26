@@ -581,7 +581,7 @@ export function DataUpdateAdmin({
               Empresa: row.companyName,
               Nombre: row.name,
               Telefono: row.personalPhone,
-              WhatsApp: row.whatsappPhone,
+              WhatsApp: row.whatsappPhone || "No tiene WhatsApp",
               Correo: row.personalEmail,
               Emergencia: `${row.emergencyContactName} / ${row.emergencyContactPhone}`,
               Relacion: row.emergencyContactRelation,
@@ -612,7 +612,7 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.companyName}</td>
                   <td className="px-3 py-2 font-semibold">{row.name}</td>
                   <td className="px-3 py-2">{row.personalPhone}</td>
-                  <td className="px-3 py-2">{row.whatsappPhone}</td>
+                  <td className="px-3 py-2">{row.whatsappPhone || "No tiene WhatsApp"}</td>
                   <td className="px-3 py-2">{row.personalEmail}</td>
                   <td className="px-3 py-2">{row.emergencyContactName} / {row.emergencyContactPhone}</td>
                   <td className="px-3 py-2">{row.emergencyContactRelation}</td>
