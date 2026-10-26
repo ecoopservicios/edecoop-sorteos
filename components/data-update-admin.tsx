@@ -39,6 +39,7 @@ type UpdateRow = {
   whatsappPhone: string;
   personalEmail: string;
   emergencyContactName: string;
+  emergencyContactLastName: string;
   emergencyContactPhone: string;
   emergencyContactRelation: string;
   status: string;
@@ -628,8 +629,10 @@ export function DataUpdateAdmin({
               Telefono: row.personalPhone,
               WhatsApp: row.whatsappPhone || "No tiene WhatsApp",
               Correo: row.personalEmail,
-              Emergencia: `${row.emergencyContactName} / ${row.emergencyContactPhone}`,
-              Relacion: row.emergencyContactRelation,
+              "Contacto de emergencia - Nombre": row.emergencyContactName,
+              "Contacto de emergencia - Apellido": row.emergencyContactLastName,
+              "Contacto de emergencia - Teléfono": row.emergencyContactPhone,
+              "Contacto de emergencia - Relación": row.emergencyContactRelation,
               Estado: row.status
             }))}
             fileName="solicitudes-actualizacion-datos"
@@ -647,8 +650,10 @@ export function DataUpdateAdmin({
                 <th className="px-3 py-2">Telefono</th>
                 <th className="px-3 py-2">WhatsApp</th>
                 <th className="px-3 py-2">Correo</th>
-                <th className="px-3 py-2">Emergencia</th>
-                <th className="px-3 py-2">Relacion</th>
+                <th className="px-3 py-2">Nombre del contacto de emergencia</th>
+                <th className="px-3 py-2">Apellido del contacto de emergencia</th>
+                <th className="px-3 py-2">Teléfono de emergencia</th>
+                <th className="px-3 py-2">Relación</th>
                 <th className="px-3 py-2">Estado</th>
               </tr>
             </thead>
@@ -663,12 +668,14 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.personalPhone}</td>
                   <td className="px-3 py-2">{row.whatsappPhone || "No tiene WhatsApp"}</td>
                   <td className="px-3 py-2">{row.personalEmail}</td>
-                  <td className="px-3 py-2">{row.emergencyContactName} / {row.emergencyContactPhone}</td>
+                  <td className="px-3 py-2">{row.emergencyContactName}</td>
+                  <td className="px-3 py-2">{row.emergencyContactLastName}</td>
+                  <td className="px-3 py-2">{row.emergencyContactPhone}</td>
                   <td className="px-3 py-2">{row.emergencyContactRelation}</td>
                   <td className="px-3 py-2">{row.status}</td>
                 </tr>
               ))}
-              {!visibleUpdates.length && <tr><td colSpan={11} className="p-6 text-center text-slate-500">No hay solicitudes que coincidan con los filtros.</td></tr>}
+              {!visibleUpdates.length && <tr><td colSpan={13} className="p-6 text-center text-slate-500">No hay solicitudes que coincidan con los filtros.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -66,23 +66,29 @@ export default async function DataUpdateAdminPage() {
           documentId: row.documentId,
           employeeNumber: row.employeeNumber
         }))}
-        updates={updates.map((row) => ({
-          id: row.id,
-          memberId: row.memberDirectoryId,
-          documentId: row.memberDirectory.documentId,
-          employeeNumber: row.memberDirectory.employeeNumber,
-          registeredAt: row.createdAt.toISOString(),
-          createdAt: row.createdAt.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }),
-          companyName: row.enrollmentCompany.name,
-          name: `${row.memberDirectory.firstName} ${row.memberDirectory.lastName}`,
-          personalPhone: row.personalPhone,
-          whatsappPhone: row.whatsappPhone,
-          personalEmail: row.personalEmail,
-          emergencyContactName: row.emergencyContactName,
-          emergencyContactPhone: row.emergencyContactPhone,
-          emergencyContactRelation: row.emergencyContactRelation,
-          status: row.status
-        }))}
+        updates={updates.map((row) => {
+          const responses = row.customResponses && typeof row.customResponses === "object" && !Array.isArray(row.customResponses) ? row.customResponses : {};
+          const firstName = typeof responses.emergencyContactFirstName === "string" ? responses.emergencyContactFirstName : "";
+          const lastName = typeof responses.emergencyContactLastName === "string" ? responses.emergencyContactLastName : "";
+          return {
+            id: row.id,
+            memberId: row.memberDirectoryId,
+            documentId: row.memberDirectory.documentId,
+            employeeNumber: row.memberDirectory.employeeNumber,
+            registeredAt: row.createdAt.toISOString(),
+            createdAt: row.createdAt.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }),
+            companyName: row.enrollmentCompany.name,
+            name: `${row.memberDirectory.firstName} ${row.memberDirectory.lastName}`,
+            personalPhone: row.personalPhone,
+            whatsappPhone: row.whatsappPhone,
+            personalEmail: row.personalEmail,
+            emergencyContactName: firstName || row.emergencyContactName,
+            emergencyContactLastName: lastName,
+            emergencyContactPhone: row.emergencyContactPhone,
+            emergencyContactRelation: row.emergencyContactRelation,
+            status: row.status
+          };
+        })}
       />
     </AppShell>
   );

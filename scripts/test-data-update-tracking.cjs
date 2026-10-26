@@ -17,6 +17,7 @@ const sign = (value) => crypto.createHmac('sha256', process.env.AUTH_SECRET || '
     await db.memberDirectory.createMany({ data: Array.from({ length: 129 }, (_, i) => ({ enrollmentCompanyId: company.id, firstName: `PRUEBA ${String(i).padStart(3, '0')}`, lastName: 'SEGUIMIENTO', employeeNumber: String(900000 + i) })) });
     const members = await db.memberDirectory.findMany({ where: { enrollmentCompanyId: company.id }, orderBy: { employeeNumber: 'asc' } });
     await db.memberDataUpdateSubmission.createMany({ data: members.slice(0, 101).map((member) => ({ memberDirectoryId: member.id, enrollmentCompanyId: company.id, lookupField: 'EMPLOYEE_NUMBER', lookupValue: member.employeeNumber, personalPhone: '8095550100', whatsappPhone: '', personalEmail: 'qa@example.com', emergencyContactName: 'PRUEBA CONTACTO', emergencyContactPhone: '8095550101', emergencyContactRelation: 'FAMILIAR', phoneValidationStatus: 'NEW', whatsappValidationStatus: 'NEW', emailValidationStatus: 'NEW' })) });
+    await db.memberDataUpdateSubmission.updateMany({ where: { memberDirectoryId: members[0].id }, data: { customResponses: { emergencyContactFirstName: 'NOMBRE PRUEBA', emergencyContactLastName: 'APELLIDO COMPUESTO' }, emergencyContactName: 'NOMBRE PRUEBA APELLIDO COMPUESTO' } });
     browser = await chromium.launch({ channel: 'msedge', headless: true });
     for (const width of [1366, 390]) {
       const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -70,6 +71,13 @@ const sign = (value) => crypto.createHmac('sha256', process.env.AUTH_SECRET || '
       await page.getByRole('searchbox', { name: 'Buscar socio' }).fill('900000');
       assert.equal(await page.locator('tbody tr').count(), 1);
       assert.match(await pager.innerText(), /de 1/);
+      await page.getByRole('columnheader', { name: 'Nombre del contacto de emergencia', exact: true }).waitFor();
+      await page.getByRole('columnheader', { name: 'Apellido del contacto de emergencia', exact: true }).waitFor();
+      await page.getByRole('cell', { name: 'NOMBRE PRUEBA', exact: true }).waitFor();
+      await page.getByRole('cell', { name: 'APELLIDO COMPUESTO', exact: true }).waitFor();
+      await page.getByRole('cell', { name: '8095550101', exact: true }).waitFor();
+      await page.getByRole('searchbox', { name: 'Buscar socio' }).fill('900001');
+      await page.getByRole('cell', { name: 'PRUEBA CONTACTO', exact: true }).waitFor();
       await page.getByRole('searchbox', { name: 'Buscar socio' }).fill('NO EXISTE');
       assert.match(await page.locator('tbody').innerText(), /No hay solicitudes/);
       await page.screenshot({ path: `tmp/data-update-tracking/list-${width}.png`, fullPage: true });
