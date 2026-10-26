@@ -4,7 +4,7 @@ import { SessionExpiry } from "@/components/session-expiry";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EDECOOP Sorteos",
+  title: "EDECOOP Eventos",
   description: "Sistema responsive para sorteos instantáneos de EDECOOP"
 };
 
