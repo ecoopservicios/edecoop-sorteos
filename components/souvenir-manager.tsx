@@ -174,9 +174,11 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
 
   async function search(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!company || searching) return;
+    const value = searchRef.current?.value || "";
+    setLookup(value);
     setSearching(true); setError("");
     try {
-      const data = await readResponse(await fetch(`/api/souvenir?companyId=${encodeURIComponent(companyId)}&lookup=${encodeURIComponent(lookup)}`, { cache: "no-store" }));
+      const data = await readResponse(await fetch(`/api/souvenir?companyId=${encodeURIComponent(companyId)}&lookup=${encodeURIComponent(value)}`, { cache: "no-store" }));
       resetCollector(); setMember(data.member);
     } catch (err) { setError(err instanceof Error ? err.message : "No se pudo buscar el socio."); }
     finally { setSearching(false); }
@@ -267,9 +269,10 @@ export function SouvenirManager({ companies, isAdmin, userId, view = "home" }: {
       <p className="mb-4 flex items-center gap-2 font-semibold text-emerald-800"><Building2 size={18} />{company.name}</p>
       <form onSubmit={search} className="space-y-3">
         <label htmlFor="souvenir-lookup" className="block text-sm font-semibold">{label}</label>
-        <input autoFocus ref={searchRef} id="souvenir-lookup" value={lookup} onChange={e => { if (/\D/.test(e.target.value)) notify("Este campo solo acepta números.", "warning"); const digits = e.target.value.replace(/\D/g, ""); setLookup(isDocument ? digits.slice(0, 11) : digits); setError(""); }} inputMode="numeric" autoComplete="off" required minLength={isDocument ? 11 : 1} maxLength={isDocument ? 11 : undefined} className={field} disabled={searching} />
+        {/* Read on submit so typing does not render the full company list. */}
+        <input autoFocus ref={searchRef} id="souvenir-lookup" defaultValue="" onChange={e => { if (/\D/.test(e.currentTarget.value)) notify("Este campo solo acepta números.", "warning"); const digits = e.currentTarget.value.replace(/\D/g, ""); e.currentTarget.value = isDocument ? digits.slice(0, 11) : digits; if (error) setError(""); }} inputMode="numeric" autoComplete="off" required minLength={isDocument ? 11 : 1} maxLength={isDocument ? 11 : undefined} className={field} disabled={searching} />
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        <button className={button + " w-full border-emerald-700 bg-emerald-700 text-white"} disabled={searching || loading}><Search size={18} />{searching ? "Buscando…" : "Buscar"}</button>
+        <button className={button + " w-full border-emerald-700 bg-emerald-700 text-white"} disabled={searching}><Search size={18} />{searching ? "Buscando…" : "Buscar"}</button>
       </form>
       <button className={button + " mt-3 w-full"} disabled={searching} onClick={() => { setSearchModal(false); setChosenCompanyId(companyId); setCompanyModal(true); setLookup(""); setError(""); }}><Building2 size={18} />Cambiar de empresa</button>
     </Modal>}
