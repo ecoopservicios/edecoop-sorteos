@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true }
       }) : null;
-      return NextResponse.json({ alreadySubmitted: Boolean(existing) }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ found: Boolean(member), alreadySubmitted: Boolean(existing) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (needsDocument && !payload.documentId) return NextResponse.json({ requiresDocument: true }, { headers: { "Cache-Control": "no-store" } });
     const documentId = needsDocument ? normalizeLookupValue(String(payload.documentId), "DOCUMENT_ID") : lookupValue;

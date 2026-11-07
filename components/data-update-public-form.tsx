@@ -13,7 +13,7 @@ type DataUpdateQuestion = {
 };
 type Stage = { key: string; title: string; question?: DataUpdateQuestion };
 type WhatsappMode = "" | "SAME" | "OTHER" | "NONE";
-type LookupStatus = "idle" | "checking" | "available" | "submitted";
+type LookupStatus = "idle" | "checking" | "available" | "not-found" | "submitted";
 const inputClass = "h-14 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -103,7 +103,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         const data = await response.json();
         if (controller.signal.aborted) return;
         if (data.code === "COMPLETED" || data.alreadySubmitted) setLookupStatus("submitted");
-        else setLookupStatus("available");
+        else setLookupStatus(data.found ? "available" : "not-found");
       } catch (failure) {
         if (!controller.signal.aborted) setLookupStatus("idle");
       }
@@ -213,11 +213,11 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         <div className="relative"><Search size={20} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input data-current-field id="data-update-lookup" name="data-update-lookup" inputMode="numeric" autoComplete="off" disabled={loading} value={current.key === "document" ? documentId : lookupValue}
             onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else { setLookupValue(value); setLookupStatus("idle"); } setVerificationToken(""); setError(""); setNotFound(null); }}
-            className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : current.key === "lookup" && lookupStatus !== "idle" ? "data-update-lookup-status" : undefined} aria-invalid={Boolean(error) || lookupStatus === "submitted"} />
+            className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : current.key === "lookup" && lookupStatus !== "idle" ? "data-update-lookup-status" : undefined} aria-invalid={Boolean(error) || lookupStatus === "submitted" || lookupStatus === "not-found"} />
         </div>
-        {current.key === "lookup" && lookupStatus !== "idle" ? <div id="data-update-lookup-status" role="status" aria-live="polite" className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-3 text-sm font-semibold ${lookupStatus === "submitted" ? "border-amber-200 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
-          {lookupStatus === "checking" ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" /> : lookupStatus === "submitted" ? <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> : <Check size={18} className="mt-0.5 shrink-0" aria-hidden="true" />}
-          <span>{lookupStatus === "checking" ? "Comprobando el número..." : lookupStatus === "submitted" ? "Este socio ya tiene una actualización registrada." : "Número listo. Puedes continuar."}</span>
+        {current.key === "lookup" && lookupStatus !== "idle" ? <div id="data-update-lookup-status" role="status" aria-live="polite" className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-3 text-sm font-semibold ${lookupStatus === "submitted" ? "border-amber-200 bg-amber-50 text-amber-950" : lookupStatus === "not-found" ? "border-red-200 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+          {lookupStatus === "checking" ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" /> : lookupStatus === "submitted" || lookupStatus === "not-found" ? <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> : <Check size={18} className="mt-0.5 shrink-0" aria-hidden="true" />}
+          <span>{lookupStatus === "checking" ? "Comprobando el número..." : lookupStatus === "submitted" ? "Este socio ya tiene una actualización registrada." : lookupStatus === "not-found" ? "No encontramos este número en la base de socios." : selected?.lookupField === "EMPLOYEE_NUMBER" ? "Número de empleado encontrado. Continúa para validar tu cédula." : "Cédula encontrada. Puedes continuar."}</span>
         </div> : null}
       </div> : null}
       {current.key === "whatsapp" ? <fieldset><legend className="sr-only">Disponibilidad de WhatsApp</legend>
@@ -236,7 +236,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       </div>
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
         {step > 0 ? <button type="button" disabled={loading} onClick={() => { editing.current = false; goTo(stages[step - 1].key); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
-        <button type="submit" disabled={loading || lookupStatus === "submitted" || (current.key === "company" && !companies.length)} className={primaryClass}>
+        <button type="submit" disabled={loading || lookupStatus === "submitted" || lookupStatus === "not-found" || (current.key === "company" && !companies.length)} className={primaryClass}>
           {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : null}
           {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : editing.current ? "Volver al resumen" : "Continuar"}
           {!loading && !["review", "lookup", "document"].includes(current.key) ? <ArrowRight size={18} /> : null}
