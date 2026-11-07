@@ -19,6 +19,26 @@ export async function POST(request: NextRequest) {
 
     const lookupValue = normalizeLookupValue(String(payload.lookupValue || ""), company.dataUpdateLookupField);
     const needsDocument = company.dataUpdateLookupField === "EMPLOYEE_NUMBER";
+    if (payload.checkOnly === true) {
+      const member = await prisma.memberDirectory.findFirst({
+        where: {
+          enrollmentCompanyId: company.id,
+          isActive: true,
+          ...(needsDocument ? { employeeNumber: lookupValue } : { documentId: lookupValue })
+        },
+        select: { id: true, documentId: true }
+      });
+      const existing = member ? await prisma.memberDataUpdateSubmission.findFirst({
+        where: {
+          OR: [
+            { memberDirectoryId: member.id },
+            ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])
+          ]
+        },
+        select: { id: true }
+      }) : null;
+      return NextResponse.json({ alreadySubmitted: Boolean(existing) }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (needsDocument && !payload.documentId) return NextResponse.json({ requiresDocument: true }, { headers: { "Cache-Control": "no-store" } });
     const documentId = needsDocument ? normalizeLookupValue(String(payload.documentId), "DOCUMENT_ID") : lookupValue;
     const member = await prisma.memberDirectory.findFirst({

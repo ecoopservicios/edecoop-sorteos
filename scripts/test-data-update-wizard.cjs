@@ -186,6 +186,20 @@ async function main() {
     assert.equal(await db.memberDataUpdateSubmission.count({ where: { memberDirectoryId: target.id } }), 1);
     assert.equal((await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } })).emergencyContactName, 'MARIA PEREZ');
     const fresh = await request.newContext({ extraHTTPHeaders: { 'x-real-ip': ip } });
+    const statusLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: { enrollmentCompanyId: companies[0].id, lookupValue: target.employeeNumber, checkOnly: true } });
+    assert.equal(statusLookup.status(), 200);
+    assert.deepEqual(await statusLookup.json(), { alreadySubmitted: true });
+    const duplicateContext = await browser.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { 'x-real-ip': ip } });
+    const duplicatePage = await duplicateContext.newPage();
+    await duplicatePage.goto(base + '/actualizar-datos');
+    await duplicatePage.getByLabel('Empresa', { exact: true }).selectOption(companies[0].id);
+    await duplicatePage.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await duplicatePage.getByLabel('Número de empleado', { exact: true }).fill(target.employeeNumber);
+    await duplicatePage.getByRole('status').filter({ hasText: 'ya tiene una actualización registrada' }).waitFor();
+    assert.equal(await duplicatePage.getByRole('button', { name: 'Continuar', exact: true }).isDisabled(), true);
+    assert(!(await duplicatePage.locator('body').innerText()).includes(target.lastName));
+    await duplicatePage.screenshot({ path: 'tmp/data-update-questions/already-submitted-mobile.png', fullPage: true });
+    await duplicateContext.close();
     const duplicateLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: lookupData });
     assert.equal(duplicateLookup.status(), 409);
     const rateKey = ratePrefix + 'lookup.' + sign(ip);
@@ -194,7 +208,7 @@ async function main() {
     assert.equal(limited.status(), 429);
     assert(Number(limited.headers()['retry-after']) > 0);
     await api.dispose(); await fresh.dispose();
-    console.log('PASS: one question at a time, mobile/desktop, employee + cedula validation, cedula lookup, identity retained, three WhatsApp modes, editing, retry/double click, persistent completion, signed proof, wrong-member rejection, concurrent deduplication and durable IP rate limit.');
+    console.log('PASS: modern one-question flow, immediate private duplicate status, mobile/desktop, employee + cedula validation, cedula lookup, identity retained, three WhatsApp modes, editing, retry/double click, persistent completion, signed proof, wrong-member rejection, concurrent deduplication and durable IP rate limit.');
   } finally {
     if (browser) await browser.close();
     if (settingRead) {

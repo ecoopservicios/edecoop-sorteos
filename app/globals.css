@@ -152,3 +152,24 @@ table {
     transform: rotate(1840deg);
   }
 }
+
+@keyframes data-update-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.data-update-step {
+  animation: data-update-enter 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-update-step {
+    animation: none;
+  }
+}
