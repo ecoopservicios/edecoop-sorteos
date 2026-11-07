@@ -8,6 +8,7 @@ const db = new PrismaClient();
 const base = process.env.TEST_BASE_URL || 'http://localhost:3002';
 const ratePrefix = 'dataUpdate.rateLimit.';
 const sign = value => crypto.createHmac('sha256', process.env.AUTH_SECRET || 'edecoop-dev-secret-change-me').update('data-update:' + value).digest('base64url');
+const receipt = memberId => { const body = Buffer.from(JSON.stringify({ purpose: 'receipt', memberId, lookup: '', documentId: null, expiresAt: Date.now() + 3600000 })).toString('base64url'); return body + '.' + sign(body); };
 async function main() {
   let browser, oldQuestions;
   const companies = [], members = [], rateKeys = new Set();
@@ -152,6 +153,7 @@ async function main() {
       await heading('Actualización recibida').waitFor();
       assert.equal(attempts, 2);
       assert.equal(await page.getByRole('button', { name: 'Continuar', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Reenviar correo de validación', exact: true }).count(), 0);
       assert.equal(await page.locator('form').count(), 0);
       await page.reload();
       await heading('Actualización recibida').waitFor();
@@ -193,6 +195,8 @@ async function main() {
     assert.equal(await db.memberDataUpdateSubmission.count({ where: { memberDirectoryId: target.id } }), 1);
     assert.equal((await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } })).emergencyContactName, 'MARIA PEREZ');
     const targetSubmission = await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } });
+    const unavailableResend = await api.post(base + '/api/actualizacion-datos/reenviar-email', { headers: { cookie: `edecoop_data_update_receipt=${receipt(target.id)}` } });
+    assert.equal(unavailableResend.status(), 503);
     const emailToken = crypto.randomBytes(32).toString('base64url');
     const emailTokenHash = crypto.createHash('sha256').update('data-update-email:' + emailToken).digest('hex');
     await db.memberDataUpdateSubmission.update({ where: { id: targetSubmission.id }, data: { emailVerificationTokenHash: emailTokenHash, emailDeliveryStatus: 'SENT', emailDeliveryError: null } });

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, MessageCircle, Pencil, Search, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Mail, MessageCircle, Pencil, Search, Send } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
@@ -28,8 +28,8 @@ function questionError(question: DataUpdateQuestion, value: string) {
   return "";
 }
 
-export function DataUpdatePublicForm({ companies, texts, questions, initialCompleted = false }: {
-  companies: CompanyOption[]; texts: DataUpdateTexts; questions: DataUpdateQuestion[]; initialCompleted?: boolean;
+export function DataUpdatePublicForm({ companies, texts, questions, initialCompleted = false, emailEnabled = false }: {
+  companies: CompanyOption[]; texts: DataUpdateTexts; questions: DataUpdateQuestion[]; initialCompleted?: boolean; emailEnabled?: boolean;
 }) {
   const [companyId, setCompanyId] = useState("");
   const [lookupValue, setLookupValue] = useState("");
@@ -45,6 +45,10 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
   const [notFound, setNotFound] = useState<{ message: string; whatsappUrl: string } | null>(null);
+  const [canResendEmail, setCanResendEmail] = useState(emailEnabled);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendError, setResendError] = useState("");
   const busy = useRef(false);
   const editing = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -137,12 +141,24 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
           if (response.status === 403) goTo("lookup");
           throw new Error(data.error || "No se pudo enviar la actualización.");
         }
-        setDone(data.message || texts.successMessage); setValues({}); setVerificationToken("");
+        setCanResendEmail(Boolean(data.emailConfigured)); setDone(data.message || texts.successMessage); setValues({}); setVerificationToken("");
         notify("Datos recibidos correctamente.", "success");
       }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "No se pudo conectar. Tus datos se conservan; inténtalo nuevamente.");
     } finally { busy.current = false; setLoading(false); }
+  }
+  async function resendEmail() {
+    if (resendingEmail) return;
+    setResendingEmail(true); setResendMessage(""); setResendError("");
+    try {
+      const response = await fetch("/api/actualizacion-datos/reenviar-email", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudo reenviar el correo.");
+      setResendMessage(data.message);
+    } catch (failure) {
+      setResendError(failure instanceof Error ? failure.message : "No se pudo reenviar el correo.");
+    } finally { setResendingEmail(false); }
   }
   if (done) return <section className="mx-auto w-full max-w-xl rounded-lg border border-slate-200 bg-white px-6 py-12 text-center shadow-sm sm:px-10">
     <img src="/edecoop-logo.png" alt="EDECOOP" className="mx-auto mb-8 h-auto w-28" />
@@ -150,6 +166,9 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     <h1 ref={heading} tabIndex={-1} className="text-2xl font-black text-slate-950 outline-none">{alreadySubmitted ? "Actualización ya registrada" : "Actualización recibida"}</h1>
     <p role="status" className="mt-4 leading-relaxed text-slate-600">{done}</p>
     {member ? <p className="mt-6 font-bold text-slate-900">{member.fullName}</p> : null}
+    {canResendEmail && !alreadySubmitted ? <button type="button" onClick={resendEmail} disabled={resendingEmail} className="mx-auto mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-white px-5 py-3 font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 sm:w-auto">{resendingEmail ? <LoaderCircle size={19} className="animate-spin" /> : <Mail size={19} />}{resendingEmail ? "Reenviando..." : "Reenviar correo de validación"}</button> : null}
+    {resendMessage ? <p role="status" className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">{resendMessage}</p> : null}
+    {resendError ? <p role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-left text-sm font-medium text-red-800">{resendError}</p> : null}
   </section>;
   const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");

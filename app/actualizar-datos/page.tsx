@@ -21,6 +21,7 @@ export default async function PublicDataUpdatePage() {
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 sm:py-8">
       <DataUpdatePublicForm
         initialCompleted={completed}
+        emailEnabled={Boolean(process.env.BREVO_API_KEY?.trim() && process.env.EMAIL_FROM_ADDRESS?.trim())}
         texts={texts}
         questions={questions}
         companies={companies.map((company) => ({

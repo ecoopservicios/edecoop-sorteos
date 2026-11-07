@@ -138,11 +138,12 @@ export async function POST(request: NextRequest) {
     const texts = emailResult.configured ? null : await getDataUpdateTextSettings();
     const response = NextResponse.json({
       submissionId: submission.id,
+      emailConfigured: emailResult.configured,
       emailSent: emailResult.sent,
       message: !emailResult.configured
         ? texts!.successMessage
         : emailResult.sent
-        ? "Tu actualización fue recibida. Revisa tu correo electrónico y presiona el enlace enviado para validar tu registro."
+        ? "Tu actualización fue recibida. Enviamos un enlace para validar tu registro. Revisa tu bandeja de entrada y, si no lo encuentras, las carpetas Spam, Correo no deseado y Promociones."
         : "Tu actualización fue recibida correctamente, pero el correo de validación no pudo enviarse en este momento. Comunícate con Servicio al cliente EDECOOP para recibir asistencia."
     });
     setDataUpdateReceipt(response, member.id);
