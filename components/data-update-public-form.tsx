@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Pencil, Search, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, MessageCircle, Pencil, Search, Send } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
@@ -44,7 +44,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [done, setDone] = useState(initialCompleted ? texts.successMessage : "");
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
-  const [notFound, setNotFound] = useState<{ message: string; supportWhatsapp: string; whatsappUrl: string } | null>(null);
+  const [notFound, setNotFound] = useState<{ message: string; whatsappUrl: string } | null>(null);
   const busy = useRef(false);
   const editing = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -195,7 +195,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         {reviewQuestions.map(stage => <ReviewRow key={stage.key} label={stage.title} value={effective[stage.key] || "No indicado"} onEdit={() => { editing.current = true; goTo(stage.key); }} disabled={loading} />)}
         <ReviewRow label="WhatsApp" value={whatsappMode === "NONE" ? "No tiene WhatsApp" : effective.whatsappPhone} onEdit={() => { editing.current = true; goTo("whatsapp"); }} disabled={loading} />
       </dl> : null}
-      {notFound ? <div role="status" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-4"><p className="font-bold text-amber-950">{notFound.message}</p><p className="mt-2 text-sm text-amber-900">{notFound.supportWhatsapp}</p><a href={notFound.whatsappUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center font-bold text-emerald-800 underline">Contactar por WhatsApp</a></div> : null}
+      {notFound ? <div role="status" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-4"><p className="font-bold text-amber-950">{notFound.message}</p><p className="mt-2 text-sm text-amber-900">Si necesitas asistencia, comunícate con Servicio al cliente EDECOOP.</p><a href={notFound.whatsappUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#128c7e] px-4 py-3 font-bold text-white shadow-sm transition-colors hover:bg-[#0f766e] focus:outline-none focus:ring-4 focus:ring-emerald-200 sm:w-auto"><MessageCircle size={20} fill="currentColor" aria-hidden="true" />Contactar Servicio al cliente EDECOOP por WhatsApp</a></div> : null}
       {error ? <p id="data-update-error" role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-sm font-medium text-red-800">{error}</p> : null}
       </div>
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">

@@ -68,7 +68,8 @@ async function main() {
         assert(!(await page.locator('body').innerText()).includes(member.lastName));
         await page.getByLabel('Cédula', { exact: true }).fill('00199999999');
         await next();
-        await page.getByRole('status').filter({ hasText: 'No encontramos' }).waitFor();
+        await page.getByRole('status').filter({ hasText: 'El número de empleado y la cédula no coinciden.' }).waitFor();
+        await page.getByRole('link', { name: 'Contactar Servicio al cliente EDECOOP por WhatsApp', exact: true }).waitFor();
         assert(!(await page.locator('body').innerText()).includes(member.lastName));
         await page.getByLabel('Cédula', { exact: true }).fill(member.documentId);
       }

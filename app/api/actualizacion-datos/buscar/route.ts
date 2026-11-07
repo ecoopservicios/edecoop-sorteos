@@ -62,9 +62,13 @@ export async function POST(request: NextRequest) {
     if (!member) {
       const [settings, texts] = await Promise.all([getCooperativeSettings(), getDataUpdateTextSettings()]);
       const supportWhatsapp = settings.whatsapp || "WhatsApp de EDECOOP";
+      const employeeExists = needsDocument ? await prisma.memberDirectory.findFirst({
+        where: { enrollmentCompanyId: company.id, isActive: true, employeeNumber: lookupValue },
+        select: { id: true }
+      }) : null;
       return NextResponse.json({
         found: false,
-        message: texts.notFoundMessage,
+        message: employeeExists ? "El número de empleado y la cédula no coinciden." : texts.notFoundMessage,
         supportWhatsapp,
         whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name, texts.whatsappMessage)
       });
