@@ -164,6 +164,9 @@ async function main() {
       assert.equal(submission.emergencyContactName, 'MARIA PEREZ GOMEZ');
       assert.equal(submission.customResponses.emergencyContactFirstName, 'MARIA');
       assert.equal(submission.customResponses.emergencyContactLastName, 'PEREZ GOMEZ');
+      assert.equal(submission.emailDeliveryStatus, 'PENDING');
+      assert(submission.emailVerificationTokenHash);
+      assert.equal(submission.emailDeliveryError, null);
       assert.deepEqual(errors, []);
       const cookies = await context.cookies();
       assert(cookies.find(c => c.name === 'edecoop_data_update_receipt')?.httpOnly);
@@ -189,6 +192,18 @@ async function main() {
     assert.deepEqual(results.map(r => r.status()).sort(), [200, 409]);
     assert.equal(await db.memberDataUpdateSubmission.count({ where: { memberDirectoryId: target.id } }), 1);
     assert.equal((await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } })).emergencyContactName, 'MARIA PEREZ');
+    const targetSubmission = await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } });
+    const emailToken = crypto.randomBytes(32).toString('base64url');
+    const emailTokenHash = crypto.createHash('sha256').update('data-update-email:' + emailToken).digest('hex');
+    await db.memberDataUpdateSubmission.update({ where: { id: targetSubmission.id }, data: { emailVerificationTokenHash: emailTokenHash, emailDeliveryStatus: 'SENT', emailDeliveryError: null } });
+    const emailVerification = await api.post(base + '/api/actualizacion-datos/validar-email', { data: { token: emailToken } });
+    assert.equal(emailVerification.status(), 200);
+    const verifiedSubmission = await db.memberDataUpdateSubmission.findUniqueOrThrow({ where: { id: targetSubmission.id } });
+    assert(verifiedSubmission.emailVerifiedAt);
+    assert.equal(verifiedSubmission.emailVerificationTokenHash, null);
+    assert.equal(verifiedSubmission.emailDeliveryStatus, 'VERIFIED');
+    const reusedEmailVerification = await api.post(base + '/api/actualizacion-datos/validar-email', { data: { token: emailToken } });
+    assert.equal(reusedEmailVerification.status(), 404);
     const fresh = await request.newContext({ extraHTTPHeaders: { 'x-real-ip': ip } });
     const duplicateLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: lookupData });
     assert.equal(duplicateLookup.status(), 409);
@@ -198,7 +213,7 @@ async function main() {
     assert.equal(limited.status(), 429);
     assert(Number(limited.headers()['retry-after']) > 0);
     await api.dispose(); await fresh.dispose();
-    console.log('PASS: modern one-question flow, validation only after Continue, unknown employee/document rejection, mobile/desktop, employee + cedula validation, identity retained, three WhatsApp modes, editing, retry/double click, persistent completion, signed proof, wrong-member rejection, concurrent deduplication and durable IP rate limit.');
+    console.log('PASS: modern form, validation after Continue, email delivery status, one-use email verification, unknown identifier rejection, mobile/desktop, identity proof, editing, retry/double click, concurrent deduplication and durable IP rate limit.');
   } finally {
     if (browser) await browser.close();
     if (settingRead) {

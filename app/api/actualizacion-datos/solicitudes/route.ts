@@ -6,6 +6,7 @@ import { compareContactValue, normalizeLookupValue, normalizePersonalEmail, tenD
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
 import { completedDataUpdate, dataUpdateRateLimit, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
+import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
 
 class AlreadySubmitted extends Error {}
 
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       cleanResponses.emergencyContactLastName = emergencyContactLastName!;
     }
 
+    const emailVerification = createDataUpdateEmailToken();
     const submission = await prisma.$transaction(async tx => {
       // Serialize submissions for the same person, including requests from different tabs or replicas.
       await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `data-update-member:${member.documentId || member.id}`);
@@ -95,17 +97,53 @@ export async function POST(request: NextRequest) {
           customResponses: cleanResponses,
           phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
           whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
-          emailValidationStatus: compareContactValue(personalEmail, member.personalEmail)
+          emailValidationStatus: compareContactValue(personalEmail, member.personalEmail),
+          emailVerificationTokenHash: emailVerification.hash
         }
       });
       await tx.auditLog.create({ data: { action: "MEMBER_DATA_UPDATE_SUBMITTED", entityType: "MemberDataUpdateSubmission", entityId: created.id, reason: "Actualizacion publica con identidad validada y un envio por socio.", metadata: { memberDirectoryId: member.id, whatsappMode } } });
       return created;
     });
 
-    const texts = await getDataUpdateTextSettings();
+    const emailResult = await sendDataUpdateVerificationEmail({
+      email: personalEmail,
+      name: `${member.firstName} ${member.lastName}`.trim(),
+      token: emailVerification.token
+    });
+    if (emailResult.configured) {
+      try {
+        const emailError = emailResult.error || "No se pudo enviar el correo.";
+        await prisma.$transaction(async tx => {
+          await tx.memberDataUpdateSubmission.update({
+            where: { id: submission.id },
+            data: emailResult.sent
+              ? { emailDeliveryStatus: "SENT", emailVerificationSentAt: new Date(), emailDeliveryError: null }
+              : { emailDeliveryStatus: "FAILED", emailDeliveryError: emailError }
+          });
+          await tx.auditLog.create({
+            data: {
+              action: emailResult.sent ? "MEMBER_DATA_UPDATE_EMAIL_SENT" : "MEMBER_DATA_UPDATE_EMAIL_FAILED",
+              entityType: "MemberDataUpdateSubmission",
+              entityId: submission.id,
+              reason: emailResult.sent ? "Correo de validación enviado al socio." : "La actualización se guardó, pero el correo no pudo enviarse.",
+              metadata: emailResult.sent ? { channel: "EMAIL" } : { channel: "EMAIL", error: emailError }
+            }
+          });
+        });
+      } catch (emailStatusError) {
+        console.error("No se pudo registrar el resultado del correo de validación.", emailStatusError);
+      }
+    }
+
+    const texts = emailResult.configured ? null : await getDataUpdateTextSettings();
     const response = NextResponse.json({
       submissionId: submission.id,
-      message: texts.successMessage
+      emailSent: emailResult.sent,
+      message: !emailResult.configured
+        ? texts!.successMessage
+        : emailResult.sent
+        ? "Tu actualización fue recibida. Revisa tu correo electrónico y presiona el enlace enviado para validar tu registro."
+        : "Tu actualización fue recibida correctamente, pero el correo de validación no pudo enviarse en este momento. Comunícate con Servicio al cliente EDECOOP para recibir asistencia."
     });
     setDataUpdateReceipt(response, member.id);
     return response;

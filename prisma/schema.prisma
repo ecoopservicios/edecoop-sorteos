@@ -498,6 +498,11 @@ model MemberDataUpdateSubmission {
   phoneValidationStatus      ContactValidationStatus
   whatsappValidationStatus   ContactValidationStatus
   emailValidationStatus      ContactValidationStatus
+  emailVerificationTokenHash String?
+  emailVerificationSentAt    DateTime?
+  emailVerifiedAt            DateTime?
+  emailDeliveryStatus        DataUpdateEmailStatus     @default(PENDING)
+  emailDeliveryError         String?
   customResponses            Json?
   status                     DataUpdateStatus         @default(RECEIVED)
   createdAt                  DateTime                 @default(now())
@@ -509,6 +514,8 @@ model MemberDataUpdateSubmission {
   @@index([createdAt])
   @@index([enrollmentCompanyId])
   @@index([status])
+  @@index([emailDeliveryStatus])
+  @@index([emailVerificationTokenHash])
 }
 
 enum UserRole {
@@ -602,4 +609,11 @@ enum DataUpdateStatus {
   REVIEWED
   APPLIED
   REJECTED
+}
+
+enum DataUpdateEmailStatus {
+  PENDING
+  SENT
+  FAILED
+  VERIFIED
 }
