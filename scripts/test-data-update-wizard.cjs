@@ -56,6 +56,9 @@ async function main() {
       await page.getByLabel('Empresa', { exact: true }).selectOption(company.id);
       await next();
       const employeeLookup = index !== 2;
+      await page.getByLabel(employeeLookup ? 'Número de empleado' : 'Cédula', { exact: true }).fill(employeeLookup ? '88888' : '00188888888');
+      await next();
+      await page.getByRole('status').filter({ hasText: 'No encontramos' }).waitFor();
       await page.getByLabel(employeeLookup ? 'Número de empleado' : 'Cédula', { exact: true }).fill(employeeLookup ? member.employeeNumber : member.documentId);
       if (employeeLookup) {
         const identityResponse = page.waitForResponse('**/api/actualizacion-datos/buscar');
@@ -186,26 +189,6 @@ async function main() {
     assert.equal(await db.memberDataUpdateSubmission.count({ where: { memberDirectoryId: target.id } }), 1);
     assert.equal((await db.memberDataUpdateSubmission.findFirstOrThrow({ where: { memberDirectoryId: target.id } })).emergencyContactName, 'MARIA PEREZ');
     const fresh = await request.newContext({ extraHTTPHeaders: { 'x-real-ip': ip } });
-    const statusLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: { enrollmentCompanyId: companies[0].id, lookupValue: target.employeeNumber, checkOnly: true } });
-    assert.equal(statusLookup.status(), 200);
-    assert.deepEqual(await statusLookup.json(), { found: true, alreadySubmitted: true });
-    const missingStatusLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: { enrollmentCompanyId: companies[0].id, lookupValue: '12345', checkOnly: true } });
-    assert.equal(missingStatusLookup.status(), 200);
-    assert.deepEqual(await missingStatusLookup.json(), { found: false, alreadySubmitted: false });
-    const duplicateContext = await browser.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { 'x-real-ip': ip } });
-    const duplicatePage = await duplicateContext.newPage();
-    await duplicatePage.goto(base + '/actualizar-datos');
-    await duplicatePage.getByLabel('Empresa', { exact: true }).selectOption(companies[0].id);
-    await duplicatePage.getByRole('button', { name: 'Continuar', exact: true }).click();
-    await duplicatePage.getByLabel('Número de empleado', { exact: true }).fill('12345');
-    await duplicatePage.getByRole('status').filter({ hasText: 'No encontramos este número' }).waitFor();
-    assert.equal(await duplicatePage.getByRole('button', { name: 'Continuar', exact: true }).isDisabled(), true);
-    await duplicatePage.getByLabel('Número de empleado', { exact: true }).fill(target.employeeNumber);
-    await duplicatePage.getByRole('status').filter({ hasText: 'ya tiene una actualización registrada' }).waitFor();
-    assert.equal(await duplicatePage.getByRole('button', { name: 'Continuar', exact: true }).isDisabled(), true);
-    assert(!(await duplicatePage.locator('body').innerText()).includes(target.lastName));
-    await duplicatePage.screenshot({ path: 'tmp/data-update-questions/already-submitted-mobile.png', fullPage: true });
-    await duplicateContext.close();
     const duplicateLookup = await fresh.post(base + '/api/actualizacion-datos/buscar', { data: lookupData });
     assert.equal(duplicateLookup.status(), 409);
     const rateKey = ratePrefix + 'lookup.' + sign(ip);
@@ -214,7 +197,7 @@ async function main() {
     assert.equal(limited.status(), 429);
     assert(Number(limited.headers()['retry-after']) > 0);
     await api.dispose(); await fresh.dispose();
-    console.log('PASS: modern one-question flow, immediate private duplicate status, mobile/desktop, employee + cedula validation, cedula lookup, identity retained, three WhatsApp modes, editing, retry/double click, persistent completion, signed proof, wrong-member rejection, concurrent deduplication and durable IP rate limit.');
+    console.log('PASS: modern one-question flow, validation only after Continue, unknown employee/document rejection, mobile/desktop, employee + cedula validation, identity retained, three WhatsApp modes, editing, retry/double click, persistent completion, signed proof, wrong-member rejection, concurrent deduplication and durable IP rate limit.');
   } finally {
     if (browser) await browser.close();
     if (settingRead) {

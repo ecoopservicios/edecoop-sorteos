@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, LoaderCircle, Pencil, Search, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Pencil, Search, Send } from "lucide-react";
 import { notify } from "@/lib/toast";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
@@ -13,7 +13,6 @@ type DataUpdateQuestion = {
 };
 type Stage = { key: string; title: string; question?: DataUpdateQuestion };
 type WhatsappMode = "" | "SAME" | "OTHER" | "NONE";
-type LookupStatus = "idle" | "checking" | "available" | "not-found" | "submitted";
 const inputClass = "h-14 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -46,7 +45,6 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
   const [notFound, setNotFound] = useState<{ message: string; supportWhatsapp: string; whatsappUrl: string } | null>(null);
-  const [lookupStatus, setLookupStatus] = useState<LookupStatus>("idle");
   const busy = useRef(false);
   const editing = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -80,36 +78,6 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   };
   useEffect(() => { if (stageKey !== "company" || done) heading.current?.focus(); }, [stageKey, done]);
   useEffect(() => { setReady(true); }, []);
-  useEffect(() => {
-    if (stageKey !== "lookup" || !selected) {
-      setLookupStatus("idle");
-      return;
-    }
-    const valid = selected.lookupField === "DOCUMENT_ID" ? /^\d{11}$/.test(lookupValue) : /^\d{1,5}$/.test(lookupValue);
-    if (!valid) {
-      setLookupStatus("idle");
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setLookupStatus("checking");
-      try {
-        const response = await fetch("/api/actualizacion-datos/buscar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enrollmentCompanyId: selected.id, lookupValue, checkOnly: true }),
-          signal: controller.signal
-        });
-        const data = await response.json();
-        if (controller.signal.aborted) return;
-        if (data.code === "COMPLETED" || data.alreadySubmitted) setLookupStatus("submitted");
-        else setLookupStatus(data.found ? "available" : "not-found");
-      } catch (failure) {
-        if (!controller.signal.aborted) setLookupStatus("idle");
-      }
-    }, 450);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [lookupValue, selected, stageKey]);
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
   function changeValue(key: string, value: string) { setValues(previous => ({ ...previous, [key]: value })); setError(""); }
   function stageError(stage: Stage) {
@@ -204,7 +172,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       <h2 ref={heading} tabIndex={-1} className="mb-6 text-xl font-black text-slate-950 outline-none">{current.title}</h2>
       {current.key === "company" ? <div>
         <label htmlFor="data-update-company" className="sr-only">Empresa</label>
-        <select data-current-field id="data-update-company" name="company" value={companyId} disabled={loading} onChange={event => { setCompanyId(event.target.value); setLookupValue(""); setDocumentId(""); setMember(null); setVerificationToken(""); setValues({}); setWhatsappMode(""); setLookupStatus("idle"); setError(""); }} className={inputClass} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)}>
+        <select data-current-field id="data-update-company" name="company" value={companyId} disabled={loading} onChange={event => { setCompanyId(event.target.value); setLookupValue(""); setDocumentId(""); setMember(null); setVerificationToken(""); setValues({}); setWhatsappMode(""); setError(""); }} className={inputClass} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)}>
           <option value="">Seleccione empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
         </select>
       </div> : null}
@@ -212,13 +180,9 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         <label htmlFor="data-update-lookup" className="sr-only">{current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? "Cédula" : "Número de empleado"}</label>
         <div className="relative"><Search size={20} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input data-current-field id="data-update-lookup" name="data-update-lookup" inputMode="numeric" autoComplete="off" disabled={loading} value={current.key === "document" ? documentId : lookupValue}
-            onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else { setLookupValue(value); setLookupStatus("idle"); } setVerificationToken(""); setError(""); setNotFound(null); }}
-            className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : current.key === "lookup" && lookupStatus !== "idle" ? "data-update-lookup-status" : undefined} aria-invalid={Boolean(error) || lookupStatus === "submitted" || lookupStatus === "not-found"} />
+            onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else setLookupValue(value); setVerificationToken(""); setError(""); setNotFound(null); }}
+            className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)} />
         </div>
-        {current.key === "lookup" && lookupStatus !== "idle" ? <div id="data-update-lookup-status" role="status" aria-live="polite" className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-3 text-sm font-semibold ${lookupStatus === "submitted" ? "border-amber-200 bg-amber-50 text-amber-950" : lookupStatus === "not-found" ? "border-red-200 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
-          {lookupStatus === "checking" ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" /> : lookupStatus === "submitted" || lookupStatus === "not-found" ? <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> : <Check size={18} className="mt-0.5 shrink-0" aria-hidden="true" />}
-          <span>{lookupStatus === "checking" ? "Comprobando el número..." : lookupStatus === "submitted" ? "Este socio ya tiene una actualización registrada." : lookupStatus === "not-found" ? "No encontramos este número en la base de socios." : selected?.lookupField === "EMPLOYEE_NUMBER" ? "Número de empleado encontrado. Continúa para validar tu cédula." : "Cédula encontrada. Puedes continuar."}</span>
-        </div> : null}
       </div> : null}
       {current.key === "whatsapp" ? <fieldset><legend className="sr-only">Disponibilidad de WhatsApp</legend>
         <div className="divide-y divide-slate-200 border-y border-slate-200">{([["SAME", "Sí, uso este mismo número"], ["OTHER", "Uso WhatsApp con otro número"], ["NONE", "No tengo WhatsApp"]] as const).map(([value, label]) => <label key={value} className="flex min-h-14 cursor-pointer items-center gap-3 py-3 text-base text-slate-800"><input data-current-field type="radio" name="whatsappMode" value={value} checked={whatsappMode === value} onChange={() => { setWhatsappMode(value); setError(""); }} className="h-5 w-5 shrink-0 accent-emerald-700" />{label}</label>)}</div>
@@ -236,7 +200,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       </div>
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
         {step > 0 ? <button type="button" disabled={loading} onClick={() => { editing.current = false; goTo(stages[step - 1].key); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
-        <button type="submit" disabled={loading || lookupStatus === "submitted" || lookupStatus === "not-found" || (current.key === "company" && !companies.length)} className={primaryClass}>
+        <button type="submit" disabled={loading || (current.key === "company" && !companies.length)} className={primaryClass}>
           {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : null}
           {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : editing.current ? "Volver al resumen" : "Continuar"}
           {!loading && !["review", "lookup", "document"].includes(current.key) ? <ArrowRight size={18} /> : null}

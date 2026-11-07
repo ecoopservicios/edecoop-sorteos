@@ -19,27 +19,37 @@ export async function POST(request: NextRequest) {
 
     const lookupValue = normalizeLookupValue(String(payload.lookupValue || ""), company.dataUpdateLookupField);
     const needsDocument = company.dataUpdateLookupField === "EMPLOYEE_NUMBER";
-    if (payload.checkOnly === true) {
-      const member = await prisma.memberDirectory.findFirst({
+    if (needsDocument && !payload.documentId) {
+      const employeeMember = await prisma.memberDirectory.findFirst({
         where: {
           enrollmentCompanyId: company.id,
           isActive: true,
-          ...(needsDocument ? { employeeNumber: lookupValue } : { documentId: lookupValue })
+          employeeNumber: lookupValue
         },
         select: { id: true, documentId: true }
       });
-      const existing = member ? await prisma.memberDataUpdateSubmission.findFirst({
+      if (!employeeMember) {
+        const [settings, texts] = await Promise.all([getCooperativeSettings(), getDataUpdateTextSettings()]);
+        const supportWhatsapp = settings.whatsapp || "WhatsApp de EDECOOP";
+        return NextResponse.json({
+          found: false,
+          message: texts.notFoundMessage,
+          supportWhatsapp,
+          whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name, texts.whatsappMessage)
+        });
+      }
+      const existing = await prisma.memberDataUpdateSubmission.findFirst({
         where: {
           OR: [
-            { memberDirectoryId: member.id },
-            ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])
+            { memberDirectoryId: employeeMember.id },
+            ...(employeeMember.documentId ? [{ memberDirectory: { documentId: employeeMember.documentId } }] : [])
           ]
         },
         select: { id: true }
-      }) : null;
-      return NextResponse.json({ found: Boolean(member), alreadySubmitted: Boolean(existing) }, { headers: { "Cache-Control": "no-store" } });
+      });
+      if (existing) return NextResponse.json({ error: "Este socio ya tiene una actualización registrada.", code: "ALREADY_SUBMITTED" }, { status: 409 });
+      return NextResponse.json({ requiresDocument: true }, { headers: { "Cache-Control": "no-store" } });
     }
-    if (needsDocument && !payload.documentId) return NextResponse.json({ requiresDocument: true }, { headers: { "Cache-Control": "no-store" } });
     const documentId = needsDocument ? normalizeLookupValue(String(payload.documentId), "DOCUMENT_ID") : lookupValue;
     const member = await prisma.memberDirectory.findFirst({
       where: {
