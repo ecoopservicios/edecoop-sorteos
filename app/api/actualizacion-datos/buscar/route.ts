@@ -3,10 +3,12 @@ import { jsonError } from "@/lib/api";
 import { getCooperativeSettings, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { buildSupportWhatsappUrl, lookupFieldLabel, normalizeLookupValue } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
-import { completedDataUpdate, createDataUpdateProof, dataUpdateRateLimit } from "@/lib/data-update-security";
+import { completedDataUpdate, createDataUpdateProof, dataUpdateRateLimit, guardDataUpdateRequest } from "@/lib/data-update-security";
 
 export async function POST(request: NextRequest) {
   try {
+    const guarded = guardDataUpdateRequest(request);
+    if (guarded) return guarded;
     if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualización en esta sesión.", code: "COMPLETED" }, { status: 409 });
     const limited = await dataUpdateRateLimit(request, "lookup");
     if (limited) return limited;
@@ -20,34 +22,6 @@ export async function POST(request: NextRequest) {
     const lookupValue = normalizeLookupValue(String(payload.lookupValue || ""), company.dataUpdateLookupField);
     const needsDocument = company.dataUpdateLookupField === "EMPLOYEE_NUMBER";
     if (needsDocument && !payload.documentId) {
-      const employeeMember = await prisma.memberDirectory.findFirst({
-        where: {
-          enrollmentCompanyId: company.id,
-          isActive: true,
-          employeeNumber: lookupValue
-        },
-        select: { id: true, documentId: true }
-      });
-      if (!employeeMember) {
-        const [settings, texts] = await Promise.all([getCooperativeSettings(), getDataUpdateTextSettings()]);
-        const supportWhatsapp = settings.whatsapp || "WhatsApp de EDECOOP";
-        return NextResponse.json({
-          found: false,
-          message: texts.notFoundMessage,
-          supportWhatsapp,
-          whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name, texts.whatsappMessage)
-        });
-      }
-      const existing = await prisma.memberDataUpdateSubmission.findFirst({
-        where: {
-          OR: [
-            { memberDirectoryId: employeeMember.id },
-            ...(employeeMember.documentId ? [{ memberDirectory: { documentId: employeeMember.documentId } }] : [])
-          ]
-        },
-        select: { id: true }
-      });
-      if (existing) return NextResponse.json({ error: "Este socio ya tiene una actualización registrada.", code: "ALREADY_SUBMITTED" }, { status: 409 });
       return NextResponse.json({ requiresDocument: true }, { headers: { "Cache-Control": "no-store" } });
     }
     const documentId = needsDocument ? normalizeLookupValue(String(payload.documentId), "DOCUMENT_ID") : lookupValue;
@@ -62,13 +36,9 @@ export async function POST(request: NextRequest) {
     if (!member) {
       const [settings, texts] = await Promise.all([getCooperativeSettings(), getDataUpdateTextSettings()]);
       const supportWhatsapp = settings.whatsapp || "WhatsApp de EDECOOP";
-      const employeeExists = needsDocument ? await prisma.memberDirectory.findFirst({
-        where: { enrollmentCompanyId: company.id, isActive: true, employeeNumber: lookupValue },
-        select: { id: true }
-      }) : null;
       return NextResponse.json({
         found: false,
-        message: employeeExists ? "El número de empleado y la cédula no coinciden." : texts.notFoundMessage,
+        message: needsDocument ? "No pudimos confirmar los datos ingresados." : texts.notFoundMessage,
         supportWhatsapp,
         whatsappUrl: buildSupportWhatsappUrl(supportWhatsapp, company.name, texts.whatsappMessage)
       });

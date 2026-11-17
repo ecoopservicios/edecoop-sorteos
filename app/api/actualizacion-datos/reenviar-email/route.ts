@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
-import { DATA_UPDATE_RECEIPT, dataUpdateRateLimit, readDataUpdateProof } from "@/lib/data-update-security";
+import { DATA_UPDATE_RECEIPT, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof } from "@/lib/data-update-security";
 import { prisma } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
+    const guarded = guardDataUpdateRequest(request);
+    if (guarded) return guarded;
     const receipt = readDataUpdateProof(request.cookies.get(DATA_UPDATE_RECEIPT)?.value, "receipt");
     if (!receipt) return jsonError("La sesión para reenviar el correo venció. Comunícate con Servicio al cliente EDECOOP.", 401);
     const limited = await dataUpdateRateLimit(request, "resend");
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     });
     const emailError = emailResult.error || "No se pudo reenviar el correo.";
     await prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `data-update-email-resend:${submission.id}`);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`data-update-email-resend:${submission.id}`}))`;
       await tx.memberDataUpdateSubmission.update({
         where: { id: submission.id },
         data: emailResult.sent

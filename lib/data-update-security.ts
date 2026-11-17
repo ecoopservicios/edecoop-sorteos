@@ -33,16 +33,38 @@ export function setDataUpdateReceipt(response: NextResponse, memberId: string) {
   response.cookies.set(DATA_UPDATE_RECEIPT, createDataUpdateProof(memberId, "", null, "receipt"), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
 }
 
+export function guardDataUpdateRequest(request: NextRequest) {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin") {
+    return NextResponse.json({ error: "Solicitud no permitida." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const expectedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+      if (!expectedHost || new URL(origin).host.toLowerCase() !== expectedHost.toLowerCase()) {
+        return NextResponse.json({ error: "Solicitud no permitida." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+      }
+    } catch {
+      return NextResponse.json({ error: "Solicitud no permitida." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
+  }
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return NextResponse.json({ error: "Formato de solicitud no permitido." }, { status: 415, headers: { "Cache-Control": "no-store" } });
+  }
+  return null;
+}
+
 // Railway overwrites X-Real-IP at its public edge. Do not trust client-supplied X-Forwarded-For.
 // Durable, namespaced counters keep the limit effective across restarts and replicas.
 export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" | "document" | "submit" | "resend") {
   const candidate = request.headers.get("x-real-ip") || "";
   const ip = isIP(candidate) ? candidate : "unknown";
   const key = `dataUpdate.rateLimit.${scope}.${signature(ip)}`;
-  const limit = scope === "lookup" ? 120 : scope === "document" ? 20 : scope === "resend" ? 5 : 60;
+  const limit = scope === "lookup" ? 30 : scope === "document" ? 10 : scope === "resend" ? 3 : 10;
   const window = scope === "lookup" || scope === "document" ? 15 * 60000 : 3600000;
   const result = await prisma.$transaction(async tx => {
-    await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", key);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
     const row = await tx.appSetting.findUnique({ where: { key } });
     const now = Date.now();
     let counter = { count: 0, resetAt: now + window };
@@ -52,7 +74,24 @@ export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" 
         if (Number.isFinite(previous.resetAt) && previous.resetAt > now && Number.isInteger(previous.count) && previous.count >= 0) counter = previous;
       } catch { /* Replace an invalid counter with a fresh window. */ }
     }
-    if (counter.count >= limit) return { limited: true, seconds: Math.max(1, Math.ceil((counter.resetAt - now) / 1000)) };
+    if (counter.count >= limit) {
+      const markerKey = `${key}.blocked`;
+      const markerValue = String(counter.resetAt);
+      const marker = await tx.appSetting.findUnique({ where: { key: markerKey } });
+      if (marker?.value !== markerValue) {
+        await tx.appSetting.upsert({ where: { key: markerKey }, create: { key: markerKey, value: markerValue }, update: { value: markerValue } });
+        await tx.auditLog.create({
+          data: {
+            action: "DATA_UPDATE_RATE_LIMIT_BLOCKED",
+            entityType: "DataUpdateSecurity",
+            entityId: key,
+            reason: "Se bloqueó temporalmente una conexión por exceder el límite del formulario público.",
+            metadata: { scope, resetAt: new Date(counter.resetAt).toISOString() }
+          }
+        });
+      }
+      return { limited: true, seconds: Math.max(1, Math.ceil((counter.resetAt - now) / 1000)) };
+    }
     counter.count++;
     await tx.appSetting.upsert({ where: { key }, create: { key, value: JSON.stringify(counter) }, update: { value: JSON.stringify(counter) } });
     return { limited: false, seconds: 0 };

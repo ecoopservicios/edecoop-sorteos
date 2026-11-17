@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { prisma } from "@/lib/db";
-import { createDataUpdateProof, dataUpdateRateLimit, readDataUpdateProof } from "@/lib/data-update-security";
+import { createDataUpdateProof, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof } from "@/lib/data-update-security";
 
 const NAME_CONNECTORS = new Set(["DE", "DEL", "LA", "LAS", "LOS", "Y"]);
 
@@ -46,6 +46,8 @@ function numberMatch(expected: string, lines: string[]) {
 
 export async function POST(request: NextRequest) {
   try {
+    const guarded = guardDataUpdateRequest(request);
+    if (guarded) return guarded;
     const limited = await dataUpdateRateLimit(request, "document");
     if (limited) return limited;
     const payload = await request.json();

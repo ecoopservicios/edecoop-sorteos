@@ -5,13 +5,15 @@ import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-set
 import { compareContactValue, normalizeLookupValue, normalizePersonalEmail, tenDigitContactPhone } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
-import { completedDataUpdate, dataUpdateRateLimit, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
+import { completedDataUpdate, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
 import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
 
 class AlreadySubmitted extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
+    const guarded = guardDataUpdateRequest(request);
+    if (guarded) return guarded;
     if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualización en esta sesión.", code: "COMPLETED" }, { status: 409 });
     const limited = await dataUpdateRateLimit(request, "submit");
     if (limited) return limited;
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
     const emailVerification = createDataUpdateEmailToken();
     const submission = await prisma.$transaction(async tx => {
       // Serialize submissions for the same person, including requests from different tabs or replicas.
-      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `data-update-member:${member.documentId || member.id}`);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`data-update-member:${member.documentId || member.id}`}))`;
       const existing = await tx.memberDataUpdateSubmission.findFirst({ where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] }, select: { id: true } });
       if (existing) throw new AlreadySubmitted("Este socio ya tiene una actualización registrada.");
       const created = await tx.memberDataUpdateSubmission.create({

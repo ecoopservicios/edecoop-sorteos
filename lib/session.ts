@@ -8,7 +8,9 @@ export type SessionPayload = { userId: string; expiresAt: number };
 
 async function sign(value: string) {
   const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", encoder.encode(process.env.AUTH_SECRET || "edecoop-dev-secret-change-me"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const secret = process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") throw new Error("Configuración de seguridad no disponible.");
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret || "edecoop-dev-secret-change-me"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return Buffer.from(await crypto.subtle.sign("HMAC", key, encoder.encode(value))).toString("base64url");
 }
 
