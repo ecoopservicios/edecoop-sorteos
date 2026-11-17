@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     const payload = await request.json();
     const proof = readDataUpdateProof(payload.verificationToken);
     if (!proof) return jsonError("La validación de identidad venció o no es válida. Vuelve a consultar tus datos.", 403);
+    if (!proof.documentVerified) return jsonError("Debes validar tu documento antes de enviar la actualización.", 403);
     const memberDirectoryId = String(payload.memberDirectoryId || "");
     const member = await prisma.memberDirectory.findFirst({
       where: { id: memberDirectoryId, isActive: true },

@@ -4,14 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const DATA_UPDATE_RECEIPT = "edecoop_data_update_receipt";
-type Proof = { purpose: "identity" | "receipt"; memberId: string; lookup: string; documentId: string | null; expiresAt: number };
+type Proof = { purpose: "identity" | "receipt"; memberId: string; lookup: string; documentId: string | null; documentVerified?: boolean; expiresAt: number };
 function signature(value: string) {
   const secret = process.env.AUTH_SECRET;
   if (!secret && process.env.NODE_ENV === "production") throw new Error("Configuración de seguridad no disponible.");
   return createHmac("sha256", secret || "edecoop-dev-secret-change-me").update(`data-update:${value}`).digest("base64url");
 }
-export function createDataUpdateProof(memberId: string, lookup: string, documentId: string | null, purpose: Proof["purpose"] = "identity") {
-  const body = Buffer.from(JSON.stringify({ purpose, memberId, lookup, documentId, expiresAt: Date.now() + (purpose === "receipt" ? 12 : 2) * 3600000 })).toString("base64url");
+export function createDataUpdateProof(memberId: string, lookup: string, documentId: string | null, purpose: Proof["purpose"] = "identity", documentVerified = false) {
+  const body = Buffer.from(JSON.stringify({ purpose, memberId, lookup, documentId, documentVerified, expiresAt: Date.now() + (purpose === "receipt" ? 12 : 2) * 3600000 })).toString("base64url");
   return `${body}.${signature(body)}`;
 }
 export function readDataUpdateProof(value: unknown, purpose: Proof["purpose"] = "identity"): Proof | null {
@@ -23,7 +23,7 @@ export function readDataUpdateProof(value: unknown, purpose: Proof["purpose"] = 
     const actual = Buffer.from(mac);
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     const proof = JSON.parse(Buffer.from(body, "base64url").toString()) as Proof;
-    return proof.purpose === purpose && typeof proof.memberId === "string" && typeof proof.lookup === "string" && (proof.documentId === null || typeof proof.documentId === "string") && Number.isFinite(proof.expiresAt) && proof.expiresAt > Date.now() ? proof : null;
+    return proof.purpose === purpose && typeof proof.memberId === "string" && typeof proof.lookup === "string" && (proof.documentId === null || typeof proof.documentId === "string") && (proof.documentVerified === undefined || typeof proof.documentVerified === "boolean") && Number.isFinite(proof.expiresAt) && proof.expiresAt > Date.now() ? proof : null;
   } catch { return null; }
 }
 export function completedDataUpdate(request: NextRequest) {
@@ -35,12 +35,12 @@ export function setDataUpdateReceipt(response: NextResponse, memberId: string) {
 
 // Railway overwrites X-Real-IP at its public edge. Do not trust client-supplied X-Forwarded-For.
 // Durable, namespaced counters keep the limit effective across restarts and replicas.
-export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" | "submit" | "resend") {
+export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" | "document" | "submit" | "resend") {
   const candidate = request.headers.get("x-real-ip") || "";
   const ip = isIP(candidate) ? candidate : "unknown";
   const key = `dataUpdate.rateLimit.${scope}.${signature(ip)}`;
-  const limit = scope === "lookup" ? 120 : scope === "resend" ? 5 : 60;
-  const window = scope === "lookup" ? 15 * 60000 : 3600000;
+  const limit = scope === "lookup" ? 120 : scope === "document" ? 20 : scope === "resend" ? 5 : 60;
+  const window = scope === "lookup" || scope === "document" ? 15 * 60000 : 3600000;
   const result = await prisma.$transaction(async tx => {
     await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", key);
     const row = await tx.appSetting.findUnique({ where: { key } });
