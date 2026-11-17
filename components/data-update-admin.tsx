@@ -95,6 +95,8 @@ export function DataUpdateAdmin({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadCompanyId, setUploadCompanyId] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -152,6 +154,24 @@ export function DataUpdateAdmin({
   async function copyPublicUrl() {
     await navigator.clipboard.writeText(publicUrl);
     notify("Link copiado.", "success");
+  }
+
+  async function resetReceivedUpdates() {
+    if (resetConfirmation !== "BORRAR" || busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/actualizacion-datos/reset-pruebas", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudieron borrar las solicitudes.");
+      notify(`${data.deleted} solicitudes recibidas fueron borradas.`, "success");
+      setResetOpen(false);
+      setResetConfirmation("");
+      router.refresh();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudieron borrar las solicitudes.", "error");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveTexts(event: FormEvent<HTMLFormElement>) {
@@ -618,7 +638,8 @@ export function DataUpdateAdmin({
         <section className="min-w-0 border-t border-slate-200 bg-white py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-black text-slate-950">Solicitudes recibidas</h2>
-          <RefreshDataButton />
+          <div className="flex flex-wrap gap-2"><RefreshDataButton />
+          <button type="button" onClick={() => setResetOpen(true)} disabled={busy || !updates.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={17} />Borrar recibidos</button>
           <ExportExcelButton
             rows={visibleUpdates.map((row) => ({
               Fecha: row.createdAt,
@@ -636,8 +657,13 @@ export function DataUpdateAdmin({
               Estado: row.status
             }))}
             fileName="solicitudes-actualizacion-datos"
-          />
+          /></div>
         </div>
+        {resetOpen ? <div className="mt-4 border-l-4 border-red-500 bg-red-50 p-4">
+          <p className="font-black text-red-950">Borrar todas las solicitudes recibidas</p>
+          <p className="mt-1 text-sm text-red-900">Se eliminarán {updates.length} registros. La base de socios no será modificada. Escribe BORRAR para confirmar.</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value.toUpperCase())} autoComplete="off" className="h-11 rounded-md border border-red-300 bg-white px-3" aria-label="Confirmación para borrar solicitudes" /><button type="button" onClick={resetReceivedUpdates} disabled={busy || resetConfirmation !== "BORRAR"} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-700 px-4 font-bold text-white hover:bg-red-800 disabled:opacity-50">{busy ? "Borrando..." : "Confirmar borrado"}</button><button type="button" onClick={() => { setResetOpen(false); setResetConfirmation(""); }} disabled={busy} className="h-11 rounded-md border border-slate-300 bg-white px-4 font-bold text-slate-700">Cancelar</button></div>
+        </div> : null}
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">

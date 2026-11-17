@@ -1,18 +1,11 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
+import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-function authorized(provided: string, expected: string) {
-  const providedHash = createHash("sha256").update(provided).digest();
-  const expectedHash = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(providedHash, expectedHash);
-}
-
-export async function POST(request: NextRequest) {
-  const expected = process.env.DATA_UPDATE_RESET_TOKEN?.trim() || "";
-  const provided = request.headers.get("x-data-update-reset-token") || "";
-  if (!expected || !provided || !authorized(provided, expected)) return jsonError("No disponible.", 404);
+export async function POST() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "ADMIN") return jsonError("No autorizado.", 403);
   const result = await prisma.$transaction(async tx => {
     await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", "data-update-submissions-reset");
     const previous = await tx.memberDataUpdateSubmission.count();
@@ -23,6 +16,7 @@ export async function POST(request: NextRequest) {
         entityType: "MemberDataUpdateSubmission",
         entityId: "all",
         reason: "Solicitudes recibidas restablecidas para pruebas del formulario público.",
+        userId: user.id,
         metadata: { previous, deleted: deleted.count }
       }
     });
