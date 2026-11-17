@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
     const member = await prisma.memberDirectory.findFirst({ where: { id: proof.memberId, isActive: true }, include: { enrollmentCompany: true } });
     if (!member || !member.enrollmentCompany.dataUpdateEnabled) return jsonError("Registro no disponible.", 404);
     const expectedNumber = kind === "EMPLOYEE_CARD" ? member.employeeNumber : member.documentId;
-    const expectedKind = member.enrollmentCompany.dataUpdateLookupField === "EMPLOYEE_NUMBER" ? "EMPLOYEE_CARD" : "DOCUMENT_ID";
-    if (kind !== expectedKind || !expectedNumber) return jsonError("El tipo de documento no corresponde a esta consulta.", 422);
+    const employeeCardAllowed = member.enrollmentCompany.dataUpdateLookupField === "EMPLOYEE_NUMBER";
+    if ((kind === "EMPLOYEE_CARD" && !employeeCardAllowed) || !expectedNumber) return jsonError("El tipo de documento no corresponde a esta consulta.", 422);
     const allText = lines.join(" ");
     const fullName = `${member.firstName} ${member.lastName}`.trim();
     if (!numberMatch(expectedNumber, lines) || !nameMatch(fullName, allText)) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Mail, MessageCircle, Monitor, Pencil, Search, Send, Smartphone } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, IdCard, LoaderCircle, Mail, MessageCircle, Monitor, Pencil, Search, Send, Smartphone } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { IdentityDocumentCapture } from "@/components/identity-document-capture";
 
@@ -14,6 +14,7 @@ type DataUpdateQuestion = {
 };
 type Stage = { key: string; title: string; question?: DataUpdateQuestion };
 type WhatsappMode = "" | "SAME" | "OTHER" | "NONE";
+type IdentityKind = "" | "DOCUMENT_ID" | "EMPLOYEE_CARD";
 const inputClass = "h-14 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -38,6 +39,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [member, setMember] = useState<FoundMember | null>(null);
   const [verificationToken, setVerificationToken] = useState("");
   const [documentVerified, setDocumentVerified] = useState(false);
+  const [identityKind, setIdentityKind] = useState<IdentityKind>("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [whatsappMode, setWhatsappMode] = useState<WhatsappMode>("");
   const [stageKey, setStageKey] = useState("company");
@@ -57,6 +59,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const editing = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const selected = companies.find(c => c.id === companyId);
+  const offersIdentityChoice = selected?.companyName.trim().toUpperCase() === "EDESUR" && selected.lookupField === "EMPLOYEE_NUMBER";
   const stages = useMemo<Stage[]>(() => {
     const question = (key: string): Stage[] => {
       const q = questions.find(q => q.fieldKey === key);
@@ -66,7 +69,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       { key: "company", title: "Selecciona tu empresa" },
       { key: "lookup", title: selected?.lookupField === "DOCUMENT_ID" ? "Consulta con tu cédula" : "Consulta con tu número de empleado" },
       ...(selected?.lookupField === "EMPLOYEE_NUMBER" ? [{ key: "document", title: "Valida tu cédula" }] : []),
-      { key: "identityPhoto", title: selected?.lookupField === "EMPLOYEE_NUMBER" ? "Fotografía tu carnet de empleado" : "Fotografía tu cédula" },
+      { key: "identityPhoto", title: offersIdentityChoice && !identityKind ? "Elige cómo validar tu identidad" : identityKind === "EMPLOYEE_CARD" ? "Fotografía tu carnet de empleado" : "Fotografía tu cédula" },
       ...question("personalPhone"),
       { key: "whatsapp", title: "¿Tu teléfono personal tiene WhatsApp?" },
       ...(whatsappMode === "OTHER" ? question("whatsappPhone") : []),
@@ -77,7 +80,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       ...questions.filter(q => !q.isSystem).map(q => ({ key: q.fieldKey, title: q.label, question: q })),
       { key: "review", title: "Revisa tu actualización" }
     ];
-  }, [questions, selected?.lookupField, whatsappMode]);
+  }, [identityKind, offersIdentityChoice, questions, selected?.lookupField, whatsappMode]);
   const step = Math.max(0, stages.findIndex(s => s.key === stageKey));
   const current = stages[step];
   const effective: Record<string, string> = {
@@ -90,7 +93,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     function clearRestoredForm(event: PageTransitionEvent) {
       if (!event.persisted) return;
       setCompanyId(""); setLookupValue(""); setDocumentId(""); setMember(null);
-      setVerificationToken(""); setDocumentVerified(false); setValues({}); setWhatsappMode("");
+      setVerificationToken(""); setDocumentVerified(false); setIdentityKind(""); setValues({}); setWhatsappMode("");
       setStageKey("company"); setError(""); setNotFound(null); editing.current = false;
     }
     window.addEventListener("pageshow", clearRestoredForm);
@@ -127,14 +130,14 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     setValues({}); setWhatsappMode(""); setError(""); setNotFound(null); editing.current = false;
     if (target.key === "company") {
       setCompanyId(""); setLookupValue(""); setDocumentId(""); setMember(null);
-      setVerificationToken(""); setDocumentVerified(false);
+      setVerificationToken(""); setDocumentVerified(false); setIdentityKind("");
     } else if (target.key === "lookup") {
       setLookupValue(""); setDocumentId(""); setMember(null);
-      setVerificationToken(""); setDocumentVerified(false);
+      setVerificationToken(""); setDocumentVerified(false); setIdentityKind("");
     } else if (target.key === "document") {
-      setDocumentId(""); setMember(null); setVerificationToken(""); setDocumentVerified(false);
+      setDocumentId(""); setMember(null); setVerificationToken(""); setDocumentVerified(false); setIdentityKind("");
     } else if (target.key === "identityPhoto") {
-      setDocumentVerified(false);
+      setDocumentVerified(false); setIdentityKind("");
     }
     setStageKey(target.key);
   }
@@ -143,6 +146,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     if (stage.key === "company" && !selected) return "Selecciona tu empresa.";
     if (stage.key === "lookup" && !(selected?.lookupField === "DOCUMENT_ID" ? /^\d{11}$/ : /^\d{1,5}$/).test(lookupValue)) return selected?.lookupField === "DOCUMENT_ID" ? "Ingresa los 11 números de tu cédula." : "Ingresa tu número de empleado (hasta 5 números).";
     if (stage.key === "document" && !/^\d{11}$/.test(documentId)) return "Ingresa los 11 números de tu cédula.";
+    if (stage.key === "identityPhoto" && !identityKind) return "Selecciona si validarás con tu cédula dominicana o con tu carnet de empleado.";
     if (stage.key === "identityPhoto" && !documentVerified) return "Toma una fotografía y valida el documento para continuar.";
     if (stage.key === "whatsapp" && !whatsappMode) return "Selecciona una opción de WhatsApp.";
     if (stage.key === "emergencyContactName") {
@@ -184,7 +188,9 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         if (data.requiresDocument) { goTo("document"); return; }
         if (!data.found) { setNotFound(data); return; }
         if (member?.id !== data.member.id) { setValues({}); setWhatsappMode(""); }
-        setMember(data.member); setVerificationToken(data.verificationToken); setDocumentVerified(false); goTo("identityPhoto");
+        setMember(data.member); setVerificationToken(data.verificationToken); setDocumentVerified(false);
+        setIdentityKind(data.member.companyName.trim().toUpperCase() === "EDESUR" && selected?.lookupField === "EMPLOYEE_NUMBER" ? "" : selected?.lookupField === "EMPLOYEE_NUMBER" ? "EMPLOYEE_CARD" : "DOCUMENT_ID");
+        goTo("identityPhoto");
       } else if (member) {
         const customResponses = Object.fromEntries(questions.filter(q => !q.isSystem).map(q => [q.fieldKey, effective[q.fieldKey] || ""]));
         const response = await fetch("/api/actualizacion-datos/solicitudes", {
@@ -256,7 +262,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       <h2 ref={heading} tabIndex={-1} className="mb-6 text-xl font-black text-slate-950 outline-none">{current.title}</h2>
       {current.key === "company" ? <div>
         <label htmlFor="data-update-company" className="sr-only">Empresa</label>
-        <select data-current-field id="data-update-company" name="company" value={companyId} disabled={loading} onChange={event => { setCompanyId(event.target.value); setLookupValue(""); setDocumentId(""); setMember(null); setVerificationToken(""); setDocumentVerified(false); setValues({}); setWhatsappMode(""); setError(""); }} className={inputClass} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)}>
+        <select data-current-field id="data-update-company" name="company" value={companyId} disabled={loading} onChange={event => { setCompanyId(event.target.value); setLookupValue(""); setDocumentId(""); setMember(null); setVerificationToken(""); setDocumentVerified(false); setIdentityKind(""); setValues({}); setWhatsappMode(""); setError(""); }} className={inputClass} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)}>
           <option value="">Seleccione empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
         </select>
       </div> : null}
@@ -264,17 +270,22 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         <label htmlFor="data-update-lookup" className="sr-only">{current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? "Cédula" : "Número de empleado"}</label>
         <div className="relative"><Search size={20} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input data-current-field id="data-update-lookup" name="data-update-lookup" inputMode="numeric" autoComplete="off" data-lpignore="true" data-1p-ignore="true" disabled={loading} value={current.key === "document" ? documentId : lookupValue}
-            onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else setLookupValue(value); setVerificationToken(""); setDocumentVerified(false); setError(""); setNotFound(null); }}
+            onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else setLookupValue(value); setVerificationToken(""); setDocumentVerified(false); setIdentityKind(""); setError(""); setNotFound(null); }}
             className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)} />
         </div>
       </div> : null}
-      {current.key === "identityPhoto" && member ? <IdentityDocumentCapture
-        key={member.id}
-        kind={selected?.lookupField === "EMPLOYEE_NUMBER" ? "EMPLOYEE_CARD" : "DOCUMENT_ID"}
-        verificationToken={verificationToken}
-        verified={documentVerified}
-        onVerified={token => { setVerificationToken(token); setDocumentVerified(true); setError(""); }}
-      /> : null}
+      {current.key === "identityPhoto" && member ? <div>
+        {offersIdentityChoice ? <fieldset className="mb-6"><legend className="sr-only">Documento para validar identidad</legend><div className="grid gap-3 sm:grid-cols-2">
+          {([ ["DOCUMENT_ID", "Cédula dominicana", IdCard], ["EMPLOYEE_CARD", "Carnet de empleado EDESUR", BadgeCheck] ] as const).map(([value, label, Icon]) => <button key={value} type="button" data-current-field={identityKind ? undefined : true} aria-pressed={identityKind === value} onClick={() => { setIdentityKind(value); setDocumentVerified(false); setError(""); }} className={`flex min-h-20 items-center gap-3 border-2 px-4 py-3 text-left font-bold transition-colors ${identityKind === value ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-slate-300 bg-white text-slate-800 hover:border-emerald-500"}`}><Icon size={26} className="shrink-0" /><span>{label}</span></button>)}
+        </div></fieldset> : null}
+        {identityKind ? <IdentityDocumentCapture
+          key={`${member.id}-${identityKind}`}
+          kind={identityKind}
+          verificationToken={verificationToken}
+          verified={documentVerified}
+          onVerified={token => { setVerificationToken(token); setDocumentVerified(true); setError(""); }}
+        /> : null}
+      </div> : null}
       {current.key === "whatsapp" ? <fieldset><legend className="sr-only">Disponibilidad de WhatsApp</legend>
         <div className="divide-y divide-slate-200 border-y border-slate-200">{([["SAME", "Sí, uso este mismo número"], ["OTHER", "Uso WhatsApp con otro número"], ["NONE", "No tengo WhatsApp"]] as const).map(([value, label]) => <label key={value} className="flex min-h-14 cursor-pointer items-center gap-3 py-3 text-base text-slate-800"><input data-current-field type="radio" name="whatsappMode" value={value} checked={whatsappMode === value} onChange={() => { setWhatsappMode(value); setError(""); }} className="h-5 w-5 shrink-0 accent-emerald-700" />{label}</label>)}</div>
       </fieldset> : null}
