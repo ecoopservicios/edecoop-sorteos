@@ -40,8 +40,29 @@ function nameMatch(expectedName: string, ocrText: string) {
 function numberMatch(expected: string, lines: string[]) {
   return lines.some(line => {
     const digitGroups: string[] = line.match(/\d+/g) ?? [];
-    return digitGroups.includes(expected) || (expected.length === 11 && digitGroups.join("") === expected);
+    const digitLike = line.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1").replace(/S/g, "5").replace(/B/g, "8").replace(/\D/g, "");
+    return digitGroups.includes(expected) || digitGroups.join("") === expected || digitLike === expected;
   });
+}
+
+function hasTokens(text: string, expected: string[]) {
+  const tokens = normalized(text).split(" ").filter(Boolean);
+  return expected.every(item => tokens.some(token => similarToken(item, token)));
+}
+
+function dominicanIdMatch(text: string) {
+  const markers = [
+    ["REPUBLICA", "DOMINICANA"],
+    ["JUNTA", "CENTRAL", "ELECTORAL"],
+    ["CEDULA", "IDENTIDAD"]
+  ];
+  return markers.filter(marker => hasTokens(text, marker)).length >= 2;
+}
+
+function employeeCardBrandMatch(companyName: string, text: string) {
+  const company = normalized(companyName).replace(/\s+/g, "");
+  if (!["EDESUR", "EDECOOP"].includes(company)) return false;
+  return normalized(text).split(" ").some(token => similarToken(company, token));
 }
 
 export async function POST(request: NextRequest) {
@@ -65,11 +86,13 @@ export async function POST(request: NextRequest) {
     const member = await prisma.memberDirectory.findFirst({ where: { id: proof.memberId, isActive: true }, include: { enrollmentCompany: true } });
     if (!member || !member.enrollmentCompany.dataUpdateEnabled) return jsonError("Registro no disponible.", 404);
     const expectedNumber = kind === "EMPLOYEE_CARD" ? member.employeeNumber : member.documentId;
-    const employeeCardAllowed = member.enrollmentCompany.dataUpdateLookupField === "EMPLOYEE_NUMBER";
+    const companyKey = normalized(member.enrollmentCompany.name).replace(/\s+/g, "");
+    const employeeCardAllowed = ["EDESUR", "EDECOOP"].includes(companyKey);
     if ((kind === "EMPLOYEE_CARD" && !employeeCardAllowed) || !expectedNumber) return jsonError("El tipo de documento no corresponde a esta consulta.", 422);
     const allText = lines.join(" ");
     const fullName = `${member.firstName} ${member.lastName}`.trim();
-    if (!numberMatch(expectedNumber, lines) || !nameMatch(fullName, allText)) {
+    const documentFormatMatches = kind === "DOCUMENT_ID" ? dominicanIdMatch(allText) : employeeCardBrandMatch(member.enrollmentCompany.name, allText);
+    if (!documentFormatMatches || !numberMatch(expectedNumber, lines) || !nameMatch(fullName, allText)) {
       return jsonError(`No pudimos confirmar el número y el nombre en ${kind === "EMPLOYEE_CARD" ? "el carnet" : "la cédula"}. Verifica que el documento esté completo, enfocado y sin reflejos.`, 422);
     }
 

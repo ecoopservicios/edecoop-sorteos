@@ -59,7 +59,9 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const editing = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const selected = companies.find(c => c.id === companyId);
-  const offersIdentityChoice = selected?.companyName.trim().toUpperCase() === "EDESUR" && selected.lookupField === "EMPLOYEE_NUMBER";
+  const selectedCompanyKey = selected?.companyName.trim().toUpperCase() || "";
+  const offersIdentityChoice = ["EDESUR", "EDECOOP"].includes(selectedCompanyKey) && Boolean(member?.employeeNumber);
+  const employeeCardLabel = selectedCompanyKey === "EDECOOP" ? "Carnet de empleado EDECOOP" : "Carnet de empleado EDESUR";
   const stages = useMemo<Stage[]>(() => {
     const question = (key: string): Stage[] => {
       const q = questions.find(q => q.fieldKey === key);
@@ -189,7 +191,8 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         if (!data.found) { setNotFound(data); return; }
         if (member?.id !== data.member.id) { setValues({}); setWhatsappMode(""); }
         setMember(data.member); setVerificationToken(data.verificationToken); setDocumentVerified(false);
-        setIdentityKind(data.member.companyName.trim().toUpperCase() === "EDESUR" && selected?.lookupField === "EMPLOYEE_NUMBER" ? "" : selected?.lookupField === "EMPLOYEE_NUMBER" ? "EMPLOYEE_CARD" : "DOCUMENT_ID");
+        const companyKey = data.member.companyName.trim().toUpperCase();
+        setIdentityKind(["EDESUR", "EDECOOP"].includes(companyKey) && data.member.employeeNumber ? "" : "DOCUMENT_ID");
         goTo("identityPhoto");
       } else if (member) {
         const customResponses = Object.fromEntries(questions.filter(q => !q.isSystem).map(q => [q.fieldKey, effective[q.fieldKey] || ""]));
@@ -276,7 +279,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       </div> : null}
       {current.key === "identityPhoto" && member ? <div>
         {offersIdentityChoice ? <fieldset className="mb-6"><legend className="sr-only">Documento para validar identidad</legend><div className="grid gap-3 sm:grid-cols-2">
-          {([ ["DOCUMENT_ID", "Cédula dominicana", IdCard], ["EMPLOYEE_CARD", "Carnet de empleado EDESUR", BadgeCheck] ] as const).map(([value, label, Icon]) => <button key={value} type="button" data-current-field={identityKind ? undefined : true} aria-pressed={identityKind === value} onClick={() => { setIdentityKind(value); setDocumentVerified(false); setError(""); }} className={`flex min-h-20 items-center gap-3 border-2 px-4 py-3 text-left font-bold transition-colors ${identityKind === value ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-slate-300 bg-white text-slate-800 hover:border-emerald-500"}`}><Icon size={26} className="shrink-0" /><span>{label}</span></button>)}
+          {([ ["DOCUMENT_ID", "Cédula dominicana", IdCard], ["EMPLOYEE_CARD", employeeCardLabel, BadgeCheck] ] as const).map(([value, label, Icon]) => <button key={value} type="button" data-current-field={identityKind ? undefined : true} aria-pressed={identityKind === value} onClick={() => { setIdentityKind(value); setDocumentVerified(false); setError(""); }} className={`flex min-h-20 items-center gap-3 border-2 px-4 py-3 text-left font-bold transition-colors ${identityKind === value ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-slate-300 bg-white text-slate-800 hover:border-emerald-500"}`}><Icon size={26} className="shrink-0" /><span>{label}</span></button>)}
         </div></fieldset> : null}
         {identityKind ? <IdentityDocumentCapture
           key={`${member.id}-${identityKind}`}
