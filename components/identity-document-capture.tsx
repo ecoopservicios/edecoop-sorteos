@@ -283,6 +283,10 @@ export function IdentityDocumentCapture({
   );
 
   return <div data-current-field tabIndex={-1}>
+    {!previewUrl ? <figure className="mb-5 bg-slate-50 px-4 py-5 text-center">
+      <img src={portrait ? "/ocr/capture-guide-badge.webp" : "/ocr/capture-guide-id.webp"} width={330} height={440} alt={`Ejemplo de cómo sostener ${portrait ? "el carnet de empleado" : "la cédula"} en la palma sin tapar sus datos`} className="mx-auto h-60 w-auto max-w-full object-contain" />
+      <figcaption className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-700">Apoya el documento en la palma, con los dedos detrás. No tapes el nombre, el número ni las esquinas.</figcaption>
+    </figure> : null}
     <div className="mb-5 flex items-start gap-3 bg-slate-50 p-4 text-sm text-slate-700"><ShieldCheck size={22} className="mt-0.5 shrink-0 text-emerald-700" /><p>La lectura se realiza en este dispositivo. La fotografía no se guarda ni se envía al servidor.</p></div>
     {previewUrl ? <div>
       <div className={`mx-auto overflow-hidden border-2 border-slate-300 bg-slate-950 ${portrait ? "max-w-[260px]" : "max-w-lg"}`} style={{ aspectRatio: portrait ? "0.63" : "1.586" }}>
