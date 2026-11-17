@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Camera, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
 
 type OcrLine = { text: string; score: number };
@@ -82,6 +83,8 @@ export function IdentityDocumentCapture({
 
   useEffect(() => {
     if (!cameraOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     let cancelled = false;
     setCameraError("");
     navigator.mediaDevices?.getUserMedia({
@@ -97,6 +100,7 @@ export function IdentityDocumentCapture({
     return () => {
       cancelled = true;
       stopStream(videoRef.current);
+      document.body.style.overflow = previousOverflow;
     };
   }, [cameraOpen]);
 
@@ -183,18 +187,18 @@ export function IdentityDocumentCapture({
     </div> : <button type="button" onClick={() => setCameraOpen(true)} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
     {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
 
-    {cameraOpen ? <div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white">
-      <header className="flex items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">Fotografía tu {documentLabel}</p><p className="text-sm text-slate-300">Ubícalo completo dentro del marco</p></div><button type="button" onClick={() => setCameraOpen(false)} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
+    {cameraOpen ? createPortal(<div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-[100] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-950 text-white">
+      <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">Fotografía tu {documentLabel}</p><p className="text-sm text-slate-300">Ubícalo completo dentro del marco</p></div><button type="button" onClick={() => setCameraOpen(false)} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
-        <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 p-5">
-          <div ref={frameRef} className={`relative border-2 border-white bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.38)] ${portrait ? "h-[72%] max-h-[680px]" : "w-[92%] max-w-3xl"}`} style={{ aspectRatio: portrait ? "0.63" : "1.586" }}>
+        <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full max-w-none object-cover" />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 p-4">
+          <div ref={frameRef} className={`relative max-h-[88%] border-2 border-white bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.42)] ${portrait ? "h-[82%] max-w-[78%]" : "w-[92%] max-w-3xl"}`} style={{ aspectRatio: portrait ? "0.63" : "1.586" }}>
             <span className="absolute -left-0.5 -top-0.5 h-8 w-8 border-l-4 border-t-4 border-amber-400" /><span className="absolute -right-0.5 -top-0.5 h-8 w-8 border-r-4 border-t-4 border-amber-400" /><span className="absolute -bottom-0.5 -left-0.5 h-8 w-8 border-b-4 border-l-4 border-amber-400" /><span className="absolute -bottom-0.5 -right-0.5 h-8 w-8 border-b-4 border-r-4 border-amber-400" />
           </div>
         </div>
       </div>
-      {cameraError ? <p role="alert" className="bg-red-950 px-4 py-3 text-center text-sm">{cameraError}</p> : null}
-      <footer className="flex items-center justify-center px-4 py-5"><button type="button" onClick={takePhoto} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
-    </div> : null}
+      {cameraError ? <p role="alert" className="shrink-0 bg-red-950 px-4 py-3 text-center text-sm">{cameraError}</p> : null}
+      <footer className="flex shrink-0 items-center justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4"><button type="button" onClick={takePhoto} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
+    </div>, document.body) : null}
   </div>;
 }
