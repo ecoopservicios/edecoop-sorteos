@@ -2,68 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { createDataUpdateProof, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof } from "@/lib/data-update-security";
-
-const NAME_CONNECTORS = new Set(["DE", "DEL", "LA", "LAS", "LOS", "Y"]);
-
-function normalized(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function editDistance(a: string, b: string) {
-  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
-  for (let i = 1; i <= a.length; i++) {
-    let previous = row[0];
-    row[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const saved = row[j];
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
-      previous = saved;
-    }
-  }
-  return row[b.length];
-}
-
-function similarToken(expected: string, actual: string) {
-  if (expected === actual) return true;
-  if (expected.length < 4 || actual.length < 4) return false;
-  return 1 - editDistance(expected, actual) / Math.max(expected.length, actual.length) >= 0.76;
-}
-
-function nameMatch(expectedName: string, ocrText: string) {
-  const expected = normalized(expectedName).split(" ").filter(token => token.length > 1 && !NAME_CONNECTORS.has(token));
-  const actual = normalized(ocrText).split(" ").filter(token => /^[A-Z]+$/.test(token));
-  const matched = expected.filter(token => actual.some(candidate => similarToken(token, candidate))).length;
-  const required = expected.length <= 2 ? expected.length : Math.max(2, Math.ceil(expected.length * 0.6));
-  return matched >= required;
-}
-
-function numberMatch(expected: string, lines: string[]) {
-  return lines.some(line => {
-    const digitGroups: string[] = line.match(/\d+/g) ?? [];
-    const digitLike = line.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1").replace(/S/g, "5").replace(/B/g, "8").replace(/\D/g, "");
-    return digitGroups.includes(expected) || digitGroups.join("") === expected || digitLike === expected;
-  });
-}
-
-function hasTokens(text: string, expected: string[]) {
-  const tokens = normalized(text).split(" ").filter(Boolean);
-  return expected.every(item => tokens.some(token => similarToken(item, token)));
-}
-
-function dominicanIdMatch(text: string) {
-  const markers = [
-    ["REPUBLICA", "DOMINICANA"],
-    ["JUNTA", "CENTRAL", "ELECTORAL"],
-    ["CEDULA", "IDENTIDAD"]
-  ];
-  return markers.filter(marker => hasTokens(text, marker)).length >= 2;
-}
-
-function employeeCardBrandMatch(companyName: string, text: string) {
-  const company = normalized(companyName).replace(/\s+/g, "");
-  if (!["EDESUR", "EDECOOP"].includes(company)) return false;
-  return normalized(text).split(" ").some(token => similarToken(company, token));
-}
+import { checkIdentityDocument } from "@/lib/identity-document-validation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,7 +14,7 @@ export async function POST(request: NextRequest) {
     const proof = readDataUpdateProof(payload.verificationToken);
     if (!proof) return jsonError("La validación de identidad venció. Vuelve a consultar tus datos.", 403);
     const kind = payload.kind === "EMPLOYEE_CARD" ? "EMPLOYEE_CARD" : payload.kind === "DOCUMENT_ID" ? "DOCUMENT_ID" : null;
-    if (!kind || !Array.isArray(payload.lines) || payload.lines.length > 40) return jsonError("Lectura de documento no válida.", 422);
+    if (!kind || !Array.isArray(payload.lines) || payload.lines.length > 60) return jsonError("Lectura de documento no válida.", 422);
     const lines = payload.lines.map((line: unknown) => {
       if (!line || typeof line !== "object") return "";
       const item = line as { text?: unknown; score?: unknown };
@@ -85,15 +24,17 @@ export async function POST(request: NextRequest) {
 
     const member = await prisma.memberDirectory.findFirst({ where: { id: proof.memberId, isActive: true }, include: { enrollmentCompany: true } });
     if (!member || !member.enrollmentCompany.dataUpdateEnabled) return jsonError("Registro no disponible.", 404);
-    const expectedNumber = kind === "EMPLOYEE_CARD" ? member.employeeNumber : member.documentId;
-    const companyKey = normalized(member.enrollmentCompany.name).replace(/\s+/g, "");
-    const employeeCardAllowed = ["EDESUR", "EDECOOP"].includes(companyKey);
-    if ((kind === "EMPLOYEE_CARD" && !employeeCardAllowed) || !expectedNumber) return jsonError("El tipo de documento no corresponde a esta consulta.", 422);
-    const allText = lines.join(" ");
     const fullName = `${member.firstName} ${member.lastName}`.trim();
-    const documentFormatMatches = kind === "DOCUMENT_ID" ? dominicanIdMatch(allText) : employeeCardBrandMatch(member.enrollmentCompany.name, allText);
-    if (!documentFormatMatches || !numberMatch(expectedNumber, lines) || !nameMatch(fullName, allText)) {
-      return jsonError(`No pudimos confirmar el número y el nombre en ${kind === "EMPLOYEE_CARD" ? "el carnet" : "la cédula"}. Verifica que el documento esté completo, enfocado y sin reflejos.`, 422);
+    const failure = checkIdentityDocument({ ...member, companyName: member.enrollmentCompany.name }, kind, lines);
+    if (failure) {
+      const label = kind === "EMPLOYEE_CARD" ? "el carnet" : "la cédula";
+      const messages = {
+        TYPE: "El tipo de documento no corresponde a esta consulta.",
+        FORMAT: `No pudimos reconocer ${label}. Incluye el documento completo y evita reflejos sobre el encabezado o logotipo.`,
+        NUMBER: `No pudimos confirmar el número de ${label === "el carnet" ? "empleado" : "cédula"}. Acerca el documento y comprueba que todos los números estén enfocados.`,
+        NAME: "El nombre leído no coincide suficientemente con el registro del socio. Evita reflejos sobre los nombres y apellidos."
+      };
+      return NextResponse.json({ error: messages[failure], code: `DOCUMENT_${failure}` }, { status: 422, headers: { "Cache-Control": "no-store" } });
     }
 
     return NextResponse.json({

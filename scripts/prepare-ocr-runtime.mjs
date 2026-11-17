@@ -1,4 +1,5 @@
 import { copyFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,5 +22,12 @@ const destination = join(root, "public", "ocr", "onnxruntime", runtimeVersion);
 await mkdir(destination, { recursive: true });
 for (const name of ["ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm"]) {
   await copyFile(join(runtimeRoot, "dist", name), join(destination, name));
+}
+for (const [name, expectedHash] of [
+  ["PP-OCRv6_tiny_det.tar", "ff6ab415b0a6e0c488550f2fb5d5046f1719848df220b2dc21b56402a65bc05d"],
+  ["PP-OCRv6_tiny_rec.tar", "1e13b22717b1edd89d4cde4fda272b6c17d5b505c97c2baea99da1a3a2d54b29"]
+]) {
+  const bytes = await readFile(join(root, "public", "ocr", "models", name));
+  if (createHash("sha256").update(bytes).digest("hex") !== expectedHash) throw new Error(`Invalid OCR model: ${name}`);
 }
 console.log(`Prepared same-origin OCR runtime ${runtimeVersion}.`);

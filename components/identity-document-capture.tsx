@@ -16,8 +16,10 @@ function getOcrEngine() {
   if (!ocrEnginePromise) {
     ocrEnginePromise = import("@paddleocr/paddleocr-js")
       .then(({ PaddleOCR }) => PaddleOCR.create({
-        lang: "en",
-        ocrVersion: "PP-OCRv6",
+        textDetectionModelName: "PP-OCRv6_tiny_det",
+        textRecognitionModelName: "PP-OCRv6_tiny_rec",
+        textDetectionModelAsset: { url: new URL("/ocr/models/PP-OCRv6_tiny_det.tar", window.location.origin).href },
+        textRecognitionModelAsset: { url: new URL("/ocr/models/PP-OCRv6_tiny_rec.tar", window.location.origin).href },
         worker: true,
         // Match the runtime bundled in PaddleOCR's worker; keep WASM imports same-origin.
         ortOptions: {
@@ -85,6 +87,24 @@ function frameDifference(first: Uint8Array, second: Uint8Array) {
   return total / first.length;
 }
 
+async function enhancePhoto(photo: Blob) {
+  const image = await createImageBitmap(photo);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) { image.close(); return photo; }
+  context.filter = "grayscale(1) contrast(1.12)";
+  context.drawImage(image, 0, 0);
+  image.close();
+  return new Promise<Blob>(resolve => canvas.toBlob(blob => resolve(blob || photo), "image/jpeg", 0.94));
+}
+
+function readLines(result?: { items: OcrLine[] }) {
+  return (result?.items || []).filter(item => item.text?.trim() && Number.isFinite(item.score) && item.score >= 0.3)
+    .map(item => ({ text: item.text.trim().slice(0, 160), score: item.score }));
+}
+
 export function IdentityDocumentCapture({
   kind,
   verificationToken,
@@ -103,7 +123,7 @@ export function IdentityDocumentCapture({
   const [liveReady, setLiveReady] = useState(false);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [status, setStatus] = useState<"IDLE" | "LOADING" | "READING" | "VERIFIED">("IDLE");
+  const [status, setStatus] = useState<"IDLE" | "LOADING" | "READING" | "REFINING" | "CHECKING" | "VERIFIED">("IDLE");
   const [message, setMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -180,6 +200,7 @@ export function IdentityDocumentCapture({
     setLiveReady(false);
     setCameraError("");
     setCameraOpen(true);
+    void getOcrEngine().catch(() => {});
   }
 
   function closeCamera() {
@@ -188,7 +209,7 @@ export function IdentityDocumentCapture({
   }
 
   async function analyze() {
-    if (!photo || status === "LOADING" || status === "READING") return;
+    if (!photo || status !== "IDLE") return;
     setMessage("");
     let engine: OcrEngine | undefined;
     try {
@@ -196,21 +217,31 @@ export function IdentityDocumentCapture({
       engine = await getOcrEngine();
       setStatus("READING");
       const [result] = await engine.predict(photo, {
-        textDetLimitSideLen: 1280,
+        textDetLimitSideLen: 960,
         textDetLimitType: "max",
         textRecScoreThresh: 0.3
       });
-      const lines = (result?.items || [])
-        .filter(item => item.text?.trim() && Number.isFinite(item.score))
-        .slice(0, 40)
-        .map(item => ({ text: item.text.trim().slice(0, 160), score: item.score }));
+      const lines = readLines(result).slice(0, 60);
       if (!lines.length) throw new Error("No pudimos leer el documento. Toma otra foto con mejor iluminación y sin reflejos.");
-      const response = await fetch("/api/actualizacion-datos/validar-documento", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verificationToken, lines, kind })
-      });
-      const data = await response.json();
+      async function confirm(reading: OcrLine[]) {
+        setStatus("CHECKING");
+        const response = await fetch("/api/actualizacion-datos/validar-documento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ verificationToken, lines: reading, kind })
+        });
+        return { response, data: await response.json() };
+      }
+      let { response, data } = await confirm(lines);
+      if (response.status === 422 && ["DOCUMENT_FORMAT", "DOCUMENT_NUMBER", "DOCUMENT_NAME"].includes(data.code)) {
+        setStatus("REFINING");
+        const [refined] = await engine.predict(await enhancePhoto(photo), {
+          textDetLimitSideLen: 1400, textDetLimitType: "max", textRecScoreThresh: 0.3
+        });
+        const merged = new Map<string, OcrLine>();
+        for (const line of [...readLines(refined), ...lines]) if (!merged.has(line.text)) merged.set(line.text, line);
+        ({ response, data } = await confirm([...merged.values()].slice(0, 60)));
+      }
       if (!response.ok) throw new Error(data.error || "El documento no coincide con los datos consultados.");
       setStatus("VERIFIED");
       setMessage(data.message || "Documento validado correctamente.");
@@ -254,7 +285,7 @@ export function IdentityDocumentCapture({
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <button type="button" onClick={resetPhoto} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={19} />Repetir foto</button>
-        <button type="button" onClick={analyze} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">{status !== "IDLE" ? <LoaderCircle size={19} className="animate-spin" /> : <ShieldCheck size={19} />}{status === "LOADING" ? "Preparando lectura..." : status === "READING" ? "Leyendo documento..." : "Validar documento"}</button>
+        <button type="button" onClick={analyze} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">{status !== "IDLE" ? <LoaderCircle size={19} className="animate-spin" /> : <ShieldCheck size={19} />}{status === "LOADING" ? "Preparando lectura..." : status === "READING" ? "Leyendo documento..." : status === "REFINING" ? "Mejorando lectura..." : status === "CHECKING" ? "Confirmando datos..." : "Validar documento"}</button>
       </div>
     </div> : <button type="button" onClick={openCamera} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
     {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}

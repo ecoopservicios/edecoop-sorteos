@@ -12,6 +12,7 @@
     "prebuild": "node scripts/prepare-ocr-runtime.mjs",
     "build": "prisma generate && next build --webpack",
     "start": "next start",
+    "test:identity": "tsx --test tests/identity-document.test.ts",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

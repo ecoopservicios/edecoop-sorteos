@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
       "worker-src 'self' blob:"
     ].join("; ");
     return [{
+      source: "/ocr/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=86400" }]
+    }, {
       source: "/(.*)",
       headers: [
         { key: "Content-Security-Policy", value: contentSecurityPolicy },
