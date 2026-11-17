@@ -17,6 +17,7 @@ export default async function DataUpdateAdminPage() {
     getDataUpdateTextSettings(),
     getDataUpdateQuestions(),
     prisma.memberDirectory.findMany({
+      where: { isActive: true },
       include: { enrollmentCompany: true },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }]
     }),
@@ -60,6 +61,7 @@ export default async function DataUpdateAdminPage() {
         }))}
         members={members.map((row) => ({
           id: row.id,
+          enrollmentCompanyId: row.enrollmentCompanyId,
           companyName: row.enrollmentCompany.name,
           firstName: row.firstName,
           lastName: row.lastName,

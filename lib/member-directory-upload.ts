@@ -93,8 +93,8 @@ export function parseMemberUpload(buffer: Buffer, company: { name: string; dataU
     if (!rowErrors.length) {
       const repeatedDocument = documents.get(documentId);
       const repeatedEmployee = employeeNumber ? employees.get(employeeNumber) : undefined;
-      if (repeatedDocument) rowErrors.push(`La cédula está repetida en la fila ${repeatedDocument}.`);
-      if (repeatedEmployee) rowErrors.push(`El NIE está repetido en la fila ${repeatedEmployee}.`);
+      if (repeatedDocument) rowErrors.push(`La cédula ${documentId} está repetida en la fila ${repeatedDocument}.`);
+      if (repeatedEmployee) rowErrors.push(`El NIE ${employeeNumber} está repetido en la fila ${repeatedEmployee}.`);
       if (!rowErrors.length) {
         documents.set(documentId, rowNumber);
         if (employeeNumber) employees.set(employeeNumber, rowNumber);

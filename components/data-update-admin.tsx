@@ -1,13 +1,14 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
-import { BarChart3, ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Upload, Users, X } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { BarChart3, ClipboardList, Copy, Download, Link2, MessageCircle, Pencil, Plus, Save, TextCursorInput, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CompanyMultiFilter, MultiSelectFilter } from "@/components/company-multi-filter";
 import { DataUpdateIndicators, DataUpdatePagination } from "@/components/data-update-tracking";
 import { RefreshDataButton } from "@/components/data-refresh";
+import { MemberDirectoryActions } from "@/components/member-directory-actions";
 
 type EnrollmentCompanyRow = {
   id: string;
@@ -19,6 +20,7 @@ type EnrollmentCompanyRow = {
 
 type MemberRow = {
   id: string;
+  enrollmentCompanyId: string;
   companyName: string;
   firstName: string;
   lastName: string;
@@ -70,13 +72,6 @@ const inputClass = "h-11 rounded-md border border-slate-300 px-3 py-2";
 const fieldClass = "h-11 w-full rounded-md border border-slate-300 px-3 py-2";
 const textareaClass = "min-h-24 w-full rounded-md border border-slate-300 px-3 py-2";
 
-type UploadResult = {
-  processed: number;
-  created: number;
-  rejected: number;
-  errors: Array<{ row: number; message: string }>;
-};
-
 export function DataUpdateAdmin({
   enrollmentCompanies,
   members,
@@ -93,13 +88,9 @@ export function DataUpdateAdmin({
   questions: DataUpdateQuestion[];
 }) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetConfirmation, setResetConfirmation] = useState("");
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadCompanyId, setUploadCompanyId] = useState("");
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [activeTab, setActiveTab] = useState<"dashboard" | "link" | "texts" | "members" | "updates">("dashboard");
   const [companies, setCompanies] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -108,7 +99,6 @@ export function DataUpdateAdmin({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [localQuestions, setLocalQuestions] = useState<DataUpdateQuestion[]>(questions);
-  const configuredCompanies = enrollmentCompanies.filter((company) => company.dataUpdateEnabled && company.dataUpdateLookupField);
   const companyOptions: [string, string][] = [...new Set([...members.map((row) => row.companyName), ...updates.map((row) => row.companyName)])].sort((a, b) => a.localeCompare(b, "es")).map((name) => [name, name]);
   const matchesCompany = (row: { companyName: string }) => !companies.length || companies.includes(row.companyName);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -121,35 +111,6 @@ export function DataUpdateAdmin({
   const pagedMembers = visibleMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pagedUpdates = visibleUpdates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pagination = <DataUpdatePagination total={pageTotal} page={currentPage} size={pageSize} onPage={setPage} onSize={(value) => { setPageSize(value); setPage(1); }} />;
-
-  async function uploadMembers(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
-    if (!uploadCompanyId) {
-      notify("Seleccione la empresa antes de cargar el archivo.", "warning");
-      event.currentTarget.value = "";
-      return;
-    }
-
-    const form = new FormData();
-    form.set("enrollmentCompanyId", uploadCompanyId);
-    form.set("file", file);
-    setBusy(true);
-    setUploadResult(null);
-    const response = await fetch("/api/actualizacion-datos/base/carga", { method: "POST", body: form });
-    const data = await response.json();
-    setBusy(false);
-    event.currentTarget.value = "";
-    setUploadResult(data);
-
-    if (!response.ok) {
-      notify(data.error || "Revise los errores del archivo.", "error");
-      return;
-    }
-
-    notify(`Socios cargados: ${data.created}.`, data.rejected ? "info" : "success");
-    router.refresh();
-  }
 
   async function copyPublicUrl() {
     await navigator.clipboard.writeText(publicUrl);
@@ -523,24 +484,7 @@ export function DataUpdateAdmin({
         <p className="mt-1 text-sm text-slate-600">
           Carga aqui el listado inicial de socios. La empresa debe estar activa y configurada para actualizacion de datos.
         </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <a href="/api/actualizacion-datos/base/plantilla" className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 font-bold text-slate-700 hover:bg-slate-100">
-            <Download size={18} />
-            Descargar template
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              setUploadOpen(true);
-              setUploadResult(null);
-              setUploadCompanyId(configuredCompanies[0]?.id || "");
-            }}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 font-bold text-white hover:bg-emerald-800"
-          >
-            <Upload size={18} />
-            Cargar listado de socios
-          </button>
-        </div>
+        <MemberDirectoryActions companies={enrollmentCompanies} members={members} />
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
@@ -570,68 +514,6 @@ export function DataUpdateAdmin({
         </div>
         {pagination}
       </section>
-      ) : null}
-
-      {uploadOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4">
-          <section className="w-full max-w-xl rounded-lg bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-black text-slate-950">Cargar base de socios</h3>
-                <p className="text-sm text-slate-600">Columnas: NOMBRE, APELLIDO, NIE, CEDULA y EMPRESA. Carga una empresa a la vez; debe coincidir con la seleccionada.</p>
-              </div>
-              <button type="button" onClick={() => setUploadOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50" title="Cerrar">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid gap-3">
-              <label>
-                <span className="mb-1 block text-sm font-bold text-slate-700">Empresa configurada</span>
-                <select value={uploadCompanyId} onChange={(event) => setUploadCompanyId(event.currentTarget.value)} required className={inputClass}>
-                  <option value="">Seleccione empresa</option>
-                  {configuredCompanies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <a href="/api/actualizacion-datos/base/plantilla" className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 font-bold text-slate-700 hover:bg-slate-100">
-                  <Download size={18} />
-                  Descargar template
-                </a>
-                <button
-                  type="button"
-                  disabled={busy || !uploadCompanyId}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 font-bold text-white hover:bg-emerald-800 disabled:opacity-60"
-                >
-                  <Upload size={18} />
-                  {busy ? "Cargando..." : "Seleccionar archivo"}
-                </button>
-                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadMembers} />
-              </div>
-            </div>
-
-            {uploadResult ? (
-              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                <p className="font-black text-slate-900">
-                  Procesados: {uploadResult.processed} | Creados: {uploadResult.created} | Rechazados: {uploadResult.rejected}
-                </p>
-                {uploadResult.errors?.length ? (
-                  <div className="mt-2 max-h-40 overflow-y-auto rounded-md bg-white p-2 text-red-700">
-                    {uploadResult.errors.map((error) => (
-                      <p key={`${error.row}-${error.message}`}>{error.message}</p>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </section>
-        </div>
       ) : null}
 
       {activeTab === "updates" ? (
