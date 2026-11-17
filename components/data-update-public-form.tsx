@@ -43,7 +43,8 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [stageKey, setStageKey] = useState("company");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
-  const [desktopAdvice, setDesktopAdvice] = useState<"CHECKING" | "SHOW" | "HIDDEN">("CHECKING");
+  const [desktopAdvice, setDesktopAdvice] = useState<"CHECKING" | "SHOW" | "NO_CAMERA" | "HIDDEN">("CHECKING");
+  const [desktopCameraChecking, setDesktopCameraChecking] = useState(false);
   const [done, setDone] = useState(initialCompleted ? texts.successMessage : "");
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -91,12 +92,23 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     const touchFirst = window.matchMedia("(pointer: coarse)").matches;
     const compactScreen = window.innerWidth < 768;
     let alreadySeen = false;
-    try { alreadySeen = sessionStorage.getItem("edecoop-data-update-desktop-advice") === "seen"; } catch { /* Continue without session persistence. */ }
+    try { alreadySeen = sessionStorage.getItem("edecoop-data-update-desktop-advice-v2") === "seen"; } catch { /* Continue without session persistence. */ }
     setDesktopAdvice(!mobileUserAgent && !touchFirst && !compactScreen && !alreadySeen ? "SHOW" : "HIDDEN");
   }, []);
-  function continueOnDesktop() {
-    try { sessionStorage.setItem("edecoop-data-update-desktop-advice", "seen"); } catch { /* The notice can still be dismissed. */ }
-    setDesktopAdvice("HIDDEN");
+  async function continueOnDesktop() {
+    if (desktopCameraChecking) return;
+    if (!navigator.mediaDevices?.getUserMedia) return setDesktopAdvice("NO_CAMERA");
+    setDesktopCameraChecking(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      stream.getTracks().forEach(track => track.stop());
+      try { sessionStorage.setItem("edecoop-data-update-desktop-advice-v2", "seen"); } catch { /* The notice can still be dismissed. */ }
+      setDesktopAdvice("HIDDEN");
+    } catch {
+      setDesktopAdvice("NO_CAMERA");
+    } finally {
+      setDesktopCameraChecking(false);
+    }
   }
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
   function changeValue(key: string, value: string) { setValues(previous => ({ ...previous, [key]: value })); setError(""); }
@@ -188,13 +200,13 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     {resendError ? <p role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-left text-sm font-medium text-red-800">{resendError}</p> : null}
   </section>;
   if (desktopAdvice === "CHECKING") return <section aria-label="Preparando formulario" className="mx-auto flex min-h-72 w-full max-w-xl items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm"><LoaderCircle size={28} className="animate-spin text-emerald-700" /></section>;
-  if (desktopAdvice === "SHOW") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
+  if (desktopAdvice === "SHOW" || desktopAdvice === "NO_CAMERA") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
     <header className="flex items-center gap-4 border-b border-slate-200 px-6 py-5 sm:px-8"><img src="/edecoop-logo.png" alt="EDECOOP" className="h-auto w-20" /><h1 className="text-xl font-black text-slate-950 sm:text-2xl">Actualización de datos</h1></header>
     <div className="grid items-center gap-7 px-6 py-8 sm:grid-cols-[1fr_210px] sm:px-8">
-      <div><div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div><h2 className="text-2xl font-black text-slate-950">Es mejor completar este proceso desde un teléfono</h2><p className="mt-4 leading-relaxed text-slate-600">Necesitarás fotografiar tu cédula o carnet de empleado. Desde el teléfono podrás usar la cámara, encuadrar el documento y validarlo con mayor facilidad.</p><div className="mt-6 flex items-start gap-3 border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>También puedes continuar en esta computadora si tiene cámara o si ya tienes una foto clara del documento.</p></div></div>
+      <div><div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div><h2 className="text-2xl font-black text-slate-950">{desktopAdvice === "NO_CAMERA" ? "Continúa desde tu teléfono" : "Escanea con el teléfono o continúa desde este dispositivo"}</h2><p className="mt-4 leading-relaxed text-slate-600">Necesitarás fotografiar tu cédula o carnet de empleado. Desde el teléfono podrás usar la cámara, encuadrar el documento y validarlo con mayor facilidad.</p>{desktopAdvice === "SHOW" ? <div className="mt-6 flex items-start gap-3 border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>Para continuar aquí, el navegador solicitará permiso para utilizar la cámara de este dispositivo.</p></div> : <div role="alert" className="mt-6 border-l-4 border-red-500 bg-red-50 p-4 text-sm font-semibold text-red-900">No encontramos una cámara disponible o el navegador no tiene permiso para utilizarla. Escanea el código con un teléfono para continuar.</div>}</div>
       <div className="text-center"><div className="border border-slate-200 bg-white p-3"><img src="/api/actualizacion-datos/qr-publico" alt="Código QR para abrir la actualización de datos en el teléfono" className="h-auto w-full" /></div><p className="mt-3 text-sm font-bold text-slate-700">Escanea con la cámara de tu teléfono</p></div>
     </div>
-    <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-5 py-3 font-bold text-slate-800 hover:bg-slate-100 sm:w-auto"><Monitor size={19} />Continuar en esta computadora</button></div>
+    {desktopAdvice === "SHOW" ? <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} disabled={desktopCameraChecking} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-5 py-3 font-bold text-slate-800 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60 sm:w-auto">{desktopCameraChecking ? <LoaderCircle size={19} className="animate-spin" /> : <Monitor size={19} />}{desktopCameraChecking ? "Verificando cámara..." : "Continuar desde este dispositivo"}</button></div> : null}
   </section>;
   const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");

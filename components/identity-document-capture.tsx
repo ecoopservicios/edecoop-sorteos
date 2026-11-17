@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, ImagePlus, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Camera, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
 
 type OcrLine = { text: string; score: number };
 type OcrEngine = { predict: (input: Blob, params?: Record<string, unknown>) => Promise<Array<{ items: OcrLine[] }>> };
@@ -74,7 +74,6 @@ export function IdentityDocumentCapture({
   const [message, setMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => {
     stopStream(videoRef.current);
@@ -94,7 +93,7 @@ export function IdentityDocumentCapture({
         videoRef.current.srcObject = stream;
         return videoRef.current.play();
       }
-    }).catch(() => setCameraError("No fue posible abrir la cámara. Autoriza el acceso o selecciona una foto desde tu dispositivo."));
+    }).catch(() => setCameraError("No fue posible abrir la cámara. Revisa el permiso del navegador o continúa desde un teléfono con cámara."));
     return () => {
       cancelled = true;
       stopStream(videoRef.current);
@@ -181,11 +180,7 @@ export function IdentityDocumentCapture({
         <button type="button" onClick={resetPhoto} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={19} />Repetir foto</button>
         <button type="button" onClick={analyze} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">{status !== "IDLE" ? <LoaderCircle size={19} className="animate-spin" /> : <ShieldCheck size={19} />}{status === "LOADING" ? "Preparando lectura..." : status === "READING" ? "Leyendo documento..." : "Validar documento"}</button>
       </div>
-    </div> : <div className="grid gap-3 sm:grid-cols-2">
-      <button type="button" onClick={() => setCameraOpen(true)} className="inline-flex min-h-14 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>
-      <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex min-h-14 items-center justify-center gap-2 border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50"><ImagePlus size={21} />Seleccionar foto</button>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={event => { const file = event.target.files?.[0]; if (file) setSelectedPhoto(file); event.target.value = ""; }} />
-    </div>}
+    </div> : <button type="button" onClick={() => setCameraOpen(true)} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
     {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
 
     {cameraOpen ? <div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white">
@@ -199,7 +194,7 @@ export function IdentityDocumentCapture({
         </div>
       </div>
       {cameraError ? <p role="alert" className="bg-red-950 px-4 py-3 text-center text-sm">{cameraError}</p> : null}
-      <footer className="flex items-center justify-center gap-5 px-4 py-5"><button type="button" onClick={() => { setCameraOpen(false); fileRef.current?.click(); }} className="inline-flex min-h-12 items-center justify-center gap-2 px-4 font-bold text-slate-200 hover:bg-white/10"><ImagePlus size={20} />Galería</button><button type="button" onClick={takePhoto} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button><span className="w-[104px]" /></footer>
+      <footer className="flex items-center justify-center px-4 py-5"><button type="button" onClick={takePhoto} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
     </div> : null}
   </div>;
 }
