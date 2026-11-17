@@ -5,7 +5,10 @@ import { createPortal } from "react-dom";
 import { Camera, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
 
 type OcrLine = { text: string; score: number };
-type OcrEngine = { predict: (input: Blob, params?: Record<string, unknown>) => Promise<Array<{ items: OcrLine[] }>> };
+type OcrEngine = {
+  predict: (input: Blob, params?: Record<string, unknown>) => Promise<Array<{ items: OcrLine[] }>>;
+  dispose: () => Promise<void>;
+};
 
 let ocrEnginePromise: Promise<OcrEngine> | null = null;
 
@@ -16,7 +19,13 @@ function getOcrEngine() {
         lang: "en",
         ocrVersion: "PP-OCRv6",
         worker: true,
-        ortOptions: { backend: "auto", numThreads: 2, simd: true }
+        // Match the runtime bundled in PaddleOCR's worker; keep WASM imports same-origin.
+        ortOptions: {
+          backend: "wasm",
+          wasmPaths: new URL("/ocr/onnxruntime/1.24.3/", window.location.origin).href,
+          numThreads: 1,
+          simd: true
+        }
       }) as Promise<OcrEngine>)
       .catch(error => {
         ocrEnginePromise = null;
@@ -181,9 +190,10 @@ export function IdentityDocumentCapture({
   async function analyze() {
     if (!photo || status === "LOADING" || status === "READING") return;
     setMessage("");
+    let engine: OcrEngine | undefined;
     try {
       setStatus("LOADING");
-      const engine = await getOcrEngine();
+      engine = await getOcrEngine();
       setStatus("READING");
       const [result] = await engine.predict(photo, {
         textDetLimitSideLen: 1280,
@@ -210,7 +220,15 @@ export function IdentityDocumentCapture({
       setPreviewUrl("");
     } catch (error) {
       setStatus("IDLE");
-      setMessage(error instanceof Error ? error.message : "No se pudo validar el documento.");
+      const detail = error instanceof Error ? error.message : "";
+      const runtimeFailed = !engine || /initWasm|no available backend|WebAssembly|failed to fetch dynamically imported module/i.test(detail);
+      if (runtimeFailed) {
+        ocrEnginePromise = null;
+        void engine?.dispose().catch(() => {});
+      }
+      setMessage(runtimeFailed
+        ? "No se pudo iniciar la lectura del documento. Revisa tu conexión y presiona Validar documento para intentar de nuevo; no necesitas repetir la foto."
+        : detail || "No se pudo validar el documento.");
     }
   }
 

@@ -7,7 +7,9 @@
     "npm": ">=10"
   },
   "scripts": {
+    "predev": "node scripts/prepare-ocr-runtime.mjs",
     "dev": "next dev --webpack",
+    "prebuild": "node scripts/prepare-ocr-runtime.mjs",
     "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "next lint",
@@ -27,6 +29,7 @@
     "fflate": "^0.8.3",
     "lucide-react": "latest",
     "next": "latest",
+    "onnxruntime-web-ocr": "npm:onnxruntime-web@1.24.3",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
