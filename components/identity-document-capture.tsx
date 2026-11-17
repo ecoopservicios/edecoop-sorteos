@@ -6,8 +6,6 @@ import { Camera, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, X } from "l
 
 type OcrLine = { text: string; score: number };
 type OcrEngine = { predict: (input: Blob, params?: Record<string, unknown>) => Promise<Array<{ items: OcrLine[] }>> };
-type CaptureStage = "FRONT" | "TILT";
-type TiltDirection = "izquierda" | "derecha";
 
 let ocrEnginePromise: Promise<OcrEngine> | null = null;
 
@@ -56,40 +54,26 @@ async function cameraFrame(video: HTMLVideoElement, frame: HTMLDivElement, portr
   return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("No se pudo capturar la fotografía.")), "image/jpeg", 0.9));
 }
 
-async function imagePixels(blob: Blob, portrait: boolean) {
-  const url = URL.createObjectURL(blob);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error("No se pudo revisar la captura."));
-      element.src = url;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = portrait ? 72 : 112;
-    canvas.height = portrait ? 112 : 72;
-    const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-    if (!context) throw new Error("No se pudo revisar la captura.");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return context.getImageData(0, 0, canvas.width, canvas.height).data;
-  } finally {
-    URL.revokeObjectURL(url);
+function videoPixels(video: HTMLVideoElement) {
+  if (!video.videoWidth || !video.videoHeight) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 48;
+  canvas.height = 72;
+  const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const gray = new Uint8Array(rgba.length / 4);
+  for (let source = 0, target = 0; source < rgba.length; source += 4, target++) {
+    gray[target] = Math.round(rgba[source] * 0.299 + rgba[source + 1] * 0.587 + rgba[source + 2] * 0.114);
   }
+  return gray;
 }
 
-async function hasLiveMovement(front: Blob, tilted: Blob, portrait: boolean) {
-  const [first, second] = await Promise.all([imagePixels(front, portrait), imagePixels(tilted, portrait)]);
-  let difference = 0;
-  let changed = 0;
-  const pixels = first.length / 4;
-  for (let index = 0; index < first.length; index += 4) {
-    const delta = (Math.abs(first[index] - second[index]) + Math.abs(first[index + 1] - second[index + 1]) + Math.abs(first[index + 2] - second[index + 2])) / 3;
-    difference += delta;
-    if (delta >= 18) changed++;
-  }
-  const meanDifference = difference / pixels;
-  const changedRatio = changed / pixels;
-  return meanDifference >= 9 && meanDifference <= 105 && changedRatio >= 0.12;
+function frameDifference(first: Uint8Array, second: Uint8Array) {
+  let total = 0;
+  for (let index = 0; index < first.length; index++) total += Math.abs(first[index] - second[index]);
+  return total / first.length;
 }
 
 export function IdentityDocumentCapture({
@@ -107,15 +91,14 @@ export function IdentityDocumentCapture({
   const documentLabel = portrait ? "carnet de empleado" : "cédula";
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [captureStage, setCaptureStage] = useState<CaptureStage>("FRONT");
-  const [frontPhoto, setFrontPhoto] = useState<Blob | null>(null);
-  const [tiltDirection, setTiltDirection] = useState<TiltDirection>("derecha");
+  const [liveReady, setLiveReady] = useState(false);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [status, setStatus] = useState<"IDLE" | "LOADING" | "READING" | "VERIFIED">("IDLE");
   const [message, setMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const liveStats = useRef<{ previous: Uint8Array | null; samples: number; movement: number }>({ previous: null, samples: 0, movement: 0 });
 
   useEffect(() => () => {
     stopStream(videoRef.current);
@@ -127,6 +110,9 @@ export function IdentityDocumentCapture({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     let cancelled = false;
+    let sampleTimer: ReturnType<typeof setInterval> | null = null;
+    liveStats.current = { previous: null, samples: 0, movement: 0 };
+    setLiveReady(false);
     setCameraError("");
     navigator.mediaDevices?.getUserMedia({
       video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -135,11 +121,25 @@ export function IdentityDocumentCapture({
       if (cancelled) return stream.getTracks().forEach(track => track.stop());
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        return videoRef.current.play();
+        return videoRef.current.play().then(() => {
+          sampleTimer = setInterval(() => {
+            const current = videoRef.current ? videoPixels(videoRef.current) : null;
+            if (!current) return;
+            const stats = liveStats.current;
+            if (stats.previous) {
+              const difference = frameDifference(stats.previous, current);
+              stats.samples++;
+              if (difference >= 1.8 && difference <= 70) stats.movement += Math.min(difference, 15);
+              if (stats.samples >= 3 && stats.movement >= 6) setLiveReady(true);
+            }
+            stats.previous = current;
+          }, 260);
+        });
       }
     }).catch(() => setCameraError("No fue posible abrir la cámara. Revisa el permiso del navegador o continúa desde un teléfono con cámara."));
     return () => {
       cancelled = true;
+      if (sampleTimer) clearInterval(sampleTimer);
       stopStream(videoRef.current);
       document.body.style.overflow = previousOverflow;
     };
@@ -157,24 +157,10 @@ export function IdentityDocumentCapture({
     const video = videoRef.current;
     const frame = frameRef.current;
     if (!video?.videoWidth || !frame) return setCameraError("Espera un momento mientras inicia la cámara.");
+    if (!liveReady) return setCameraError("Mueve ligeramente el documento dentro del marco y espera a que la cámara esté lista.");
     try {
       setCameraError("");
-      const captured = await cameraFrame(video, frame, portrait);
-      if (captureStage === "FRONT") {
-        setFrontPhoto(captured);
-        setCaptureStage("TILT");
-        return;
-      }
-      if (!frontPhoto || !await hasLiveMovement(frontPhoto, captured, portrait)) {
-        setFrontPhoto(null);
-        setCaptureStage("FRONT");
-        setTiltDirection(Math.random() < 0.5 ? "izquierda" : "derecha");
-        setCameraError("No detectamos el movimiento del documento. Colócalo de frente y repite la prueba sin usar una fotografía o pantalla.");
-        return;
-      }
-      setSelectedPhoto(frontPhoto);
-      setFrontPhoto(null);
-      setCaptureStage("FRONT");
+      setSelectedPhoto(await cameraFrame(video, frame, portrait));
       setCameraOpen(false);
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : "No se pudo capturar la fotografía.");
@@ -182,16 +168,13 @@ export function IdentityDocumentCapture({
   }
 
   function openCamera() {
-    setFrontPhoto(null);
-    setCaptureStage("FRONT");
-    setTiltDirection(Math.random() < 0.5 ? "izquierda" : "derecha");
+    setLiveReady(false);
     setCameraError("");
     setCameraOpen(true);
   }
 
   function closeCamera() {
-    setFrontPhoto(null);
-    setCaptureStage("FRONT");
+    setLiveReady(false);
     setCameraOpen(false);
   }
 
@@ -259,7 +242,7 @@ export function IdentityDocumentCapture({
     {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
 
     {cameraOpen ? createPortal(<div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-[100] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-950 text-white">
-      <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">{captureStage === "FRONT" ? `Coloca tu ${documentLabel} de frente` : `Inclínalo hacia la ${tiltDirection}`}</p><p className="text-sm text-slate-300">{captureStage === "FRONT" ? "Ubícalo completo y sin reflejos dentro del marco" : "Mantén el documento dentro del marco y toma la segunda captura"}</p></div><button type="button" onClick={closeCamera} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
+      <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">Fotografía tu {documentLabel}</p><p className="text-sm text-slate-300">Ubícalo completo y muévelo ligeramente dentro del marco</p></div><button type="button" onClick={closeCamera} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
         <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full max-w-none object-cover" />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 p-4">
@@ -269,7 +252,7 @@ export function IdentityDocumentCapture({
         </div>
       </div>
       {cameraError ? <p role="alert" className="shrink-0 bg-red-950 px-4 py-3 text-center text-sm">{cameraError}</p> : null}
-      <footer className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"><p className="text-xs font-bold uppercase text-slate-300">Captura {captureStage === "FRONT" ? "1" : "2"} de 2</p><button type="button" onClick={takePhoto} aria-label={captureStage === "FRONT" ? "Tomar primera fotografía" : "Tomar segunda fotografía"} className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
+      <footer className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"><p role="status" className={`text-xs font-bold uppercase ${liveReady ? "text-emerald-300" : "text-slate-300"}`}>{liveReady ? "Cámara lista" : "Comprobando documento en vivo"}</p><button type="button" onClick={takePhoto} disabled={!liveReady} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg disabled:cursor-wait disabled:bg-slate-600 disabled:opacity-70"><Camera size={27} /></button></footer>
     </div>, document.body) : null}
   </div>;
 }
