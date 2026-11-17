@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Mail, MessageCircle, Pencil, Search, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Mail, MessageCircle, Monitor, Pencil, Search, Send, Smartphone } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { IdentityDocumentCapture } from "@/components/identity-document-capture";
 
@@ -43,6 +43,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [stageKey, setStageKey] = useState("company");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [desktopAdvice, setDesktopAdvice] = useState<"CHECKING" | "SHOW" | "HIDDEN">("CHECKING");
   const [done, setDone] = useState(initialCompleted ? texts.successMessage : "");
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -84,7 +85,19 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     whatsappPhone: whatsappMode === "NONE" ? "" : whatsappMode === "SAME" ? values.personalPhone || "" : values.whatsappPhone || ""
   };
   useEffect(() => { if (stageKey !== "company" || done) heading.current?.focus(); }, [stageKey, done]);
-  useEffect(() => { setReady(true); }, []);
+  useEffect(() => {
+    setReady(true);
+    const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const touchFirst = window.matchMedia("(pointer: coarse)").matches;
+    const compactScreen = window.innerWidth < 768;
+    let alreadySeen = false;
+    try { alreadySeen = sessionStorage.getItem("edecoop-data-update-desktop-advice") === "seen"; } catch { /* Continue without session persistence. */ }
+    setDesktopAdvice(!mobileUserAgent && !touchFirst && !compactScreen && !alreadySeen ? "SHOW" : "HIDDEN");
+  }, []);
+  function continueOnDesktop() {
+    try { sessionStorage.setItem("edecoop-data-update-desktop-advice", "seen"); } catch { /* The notice can still be dismissed. */ }
+    setDesktopAdvice("HIDDEN");
+  }
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
   function changeValue(key: string, value: string) { setValues(previous => ({ ...previous, [key]: value })); setError(""); }
   function stageError(stage: Stage) {
@@ -173,6 +186,15 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     {canResendEmail && !alreadySubmitted ? <button type="button" onClick={resendEmail} disabled={resendingEmail} className="mx-auto mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-white px-5 py-3 font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 sm:w-auto">{resendingEmail ? <LoaderCircle size={19} className="animate-spin" /> : <Mail size={19} />}{resendingEmail ? "Reenviando..." : "Reenviar correo de validación"}</button> : null}
     {resendMessage ? <p role="status" className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">{resendMessage}</p> : null}
     {resendError ? <p role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-left text-sm font-medium text-red-800">{resendError}</p> : null}
+  </section>;
+  if (desktopAdvice === "CHECKING") return <section aria-label="Preparando formulario" className="mx-auto flex min-h-72 w-full max-w-xl items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm"><LoaderCircle size={28} className="animate-spin text-emerald-700" /></section>;
+  if (desktopAdvice === "SHOW") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
+    <header className="flex items-center gap-4 border-b border-slate-200 px-6 py-5 sm:px-8"><img src="/edecoop-logo.png" alt="EDECOOP" className="h-auto w-20" /><h1 className="text-xl font-black text-slate-950 sm:text-2xl">Actualización de datos</h1></header>
+    <div className="grid items-center gap-7 px-6 py-8 sm:grid-cols-[1fr_210px] sm:px-8">
+      <div><div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div><h2 className="text-2xl font-black text-slate-950">Es mejor completar este proceso desde un teléfono</h2><p className="mt-4 leading-relaxed text-slate-600">Necesitarás fotografiar tu cédula o carnet de empleado. Desde el teléfono podrás usar la cámara, encuadrar el documento y validarlo con mayor facilidad.</p><div className="mt-6 flex items-start gap-3 border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>También puedes continuar en esta computadora si tiene cámara o si ya tienes una foto clara del documento.</p></div></div>
+      <div className="text-center"><div className="border border-slate-200 bg-white p-3"><img src="/api/actualizacion-datos/qr-publico" alt="Código QR para abrir la actualización de datos en el teléfono" className="h-auto w-full" /></div><p className="mt-3 text-sm font-bold text-slate-700">Escanea con la cámara de tu teléfono</p></div>
+    </div>
+    <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-5 py-3 font-bold text-slate-800 hover:bg-slate-100 sm:w-auto"><Monitor size={19} />Continuar en esta computadora</button></div>
   </section>;
   const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");
