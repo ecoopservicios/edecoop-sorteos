@@ -88,6 +88,7 @@ export default async function DataUpdateAdminPage() {
             emergencyContactLastName: lastName,
             emergencyContactPhone: row.emergencyContactPhone,
             emergencyContactRelation: row.emergencyContactRelation,
+            emergencyContactRelationOther: typeof responses.emergencyContactRelationOther === "string" ? responses.emergencyContactRelationOther : "",
             status: row.status
           };
         })}

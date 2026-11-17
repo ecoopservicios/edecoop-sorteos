@@ -9,6 +9,7 @@ import { CompanyMultiFilter, MultiSelectFilter } from "@/components/company-mult
 import { DataUpdateIndicators, DataUpdatePagination } from "@/components/data-update-tracking";
 import { RefreshDataButton } from "@/components/data-refresh";
 import { MemberDirectoryActions } from "@/components/member-directory-actions";
+import { emergencyContactRelationLabel } from "@/lib/emergency-contact-relation";
 
 type EnrollmentCompanyRow = {
   id: string;
@@ -44,6 +45,7 @@ type UpdateRow = {
   emergencyContactLastName: string;
   emergencyContactPhone: string;
   emergencyContactRelation: string;
+  emergencyContactRelationOther: string;
   status: string;
 };
 
@@ -535,7 +537,7 @@ export function DataUpdateAdmin({
               "Contacto de emergencia - Nombre": row.emergencyContactName,
               "Contacto de emergencia - Apellido": row.emergencyContactLastName,
               "Contacto de emergencia - Teléfono": row.emergencyContactPhone,
-              "Contacto de emergencia - Relación": row.emergencyContactRelation,
+              "Contacto de emergencia - Relación": emergencyContactRelationLabel(row.emergencyContactRelation, row.emergencyContactRelationOther),
               Estado: row.status
             }))}
             fileName="solicitudes-actualizacion-datos"
@@ -579,7 +581,7 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.emergencyContactName}</td>
                   <td className="px-3 py-2">{row.emergencyContactLastName}</td>
                   <td className="px-3 py-2">{row.emergencyContactPhone}</td>
-                  <td className="px-3 py-2">{row.emergencyContactRelation}</td>
+                  <td className="px-3 py-2">{emergencyContactRelationLabel(row.emergencyContactRelation, row.emergencyContactRelationOther)}</td>
                   <td className="px-3 py-2">{row.status}</td>
                 </tr>
               ))}

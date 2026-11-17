@@ -595,8 +595,10 @@ enum MemberLookupField {
 enum EmergencyContactRelation {
   FAMILIAR
   ESPOSA
+  PAREJA
   HIJO
   AMIGO
+  OTRO
 }
 
 enum ContactValidationStatus {

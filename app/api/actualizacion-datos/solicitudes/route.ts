@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
 import { completedDataUpdate, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
 import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
+import { parseEmergencyContactRelation } from "@/lib/emergency-contact-relation";
 
 class AlreadySubmitted extends Error {}
 
@@ -48,10 +49,9 @@ export async function POST(request: NextRequest) {
       ? `${emergencyContactFirstName} ${emergencyContactLastName}`
       : validatePersonName(String(payload.emergencyContactName || ""), "Contacto de emergencia");
     const emergencyContactPhone = tenDigitContactPhone(String(payload.emergencyContactPhone || ""), "Teléfono de emergencia");
-    const relationValues = Object.values(EmergencyContactRelation);
-    const relation = String(payload.emergencyContactRelation || "");
-    if (!relationValues.includes(relation as EmergencyContactRelation)) return jsonError("Selecciona la relación con tu contacto de emergencia.", 422);
-    const emergencyContactRelation = relation as EmergencyContactRelation;
+    const parsedEmergencyRelation = parseEmergencyContactRelation(payload.emergencyContactRelation, payload.emergencyContactRelationOther);
+    const emergencyContactRelation = parsedEmergencyRelation.relation as EmergencyContactRelation;
+    const emergencyContactRelationOther = parsedEmergencyRelation.other;
 
     if (personalPhone === member.personalPhone) {
       return jsonError("El teléfono ingresado coincide con el que tenemos registrado. Favor ingresar su teléfono móvil personal actualizado.", 422);
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       cleanResponses[question.fieldKey] = value;
     }
     cleanResponses.whatsappPreference = whatsappMode;
+    if (emergencyContactRelationOther) cleanResponses.emergencyContactRelationOther = emergencyContactRelationOther;
     if (splitEmergencyContact) {
       cleanResponses.emergencyContactFirstName = emergencyContactFirstName!;
       cleanResponses.emergencyContactLastName = emergencyContactLastName!;

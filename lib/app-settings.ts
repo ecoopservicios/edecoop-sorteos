@@ -177,7 +177,7 @@ export function fallbackDataUpdateQuestions(): DataUpdateQuestion[] {
       required: true,
       isSystem: true,
       helpText: "Seleccione la relación con su contacto de emergencia.",
-      options: ["FAMILIAR", "ESPOSA", "HIJO", "AMIGO"]
+      options: ["ESPOSA", "PAREJA", "HIJO", "AMIGO", "FAMILIAR", "OTRO"]
     }
   ];
 }
@@ -220,7 +220,7 @@ function normalizeQuestions(value: unknown): DataUpdateQuestion[] {
         required: system ? true : Boolean(row.required),
         isSystem: Boolean(system),
         helpText: String(row.helpText || system?.helpText || "").trim(),
-        options: type === "SELECT" ? (Array.isArray(row.options) ? row.options.map(String).filter(Boolean) : system?.options || []) : undefined
+        options: type === "SELECT" ? (system?.options || (Array.isArray(row.options) ? row.options.map(String).filter(Boolean) : [])) : undefined
       };
     })
     .filter(Boolean) as DataUpdateQuestion[];

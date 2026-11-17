@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, IdCard, LoaderCircle, Mail, MessageCircle, Monitor, Pencil, Search, Send, Smartphone } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { IdentityDocumentCapture } from "@/components/identity-document-capture";
+import { emergencyContactRelationLabel, normalizeOtherEmergencyRelation } from "@/lib/emergency-contact-relation";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
 type FoundMember = { id: string; companyName: string; fullName: string; documentId: string | null; employeeNumber: string | null };
@@ -155,6 +156,10 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       if (!/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim())) return "Ingresa el nombre del contacto de emergencia (al menos dos letras).";
       if (!/^[A-Z ]{2,}$/.test((values.emergencyContactLastName || "").trim())) return "Ingresa el apellido del contacto de emergencia (al menos dos letras).";
     }
+    if (stage.key === "emergencyContactRelation" && effective.emergencyContactRelation === "OTRO") {
+      try { normalizeOtherEmergencyRelation(values.emergencyContactRelationOther); }
+      catch (failure) { return failure instanceof Error ? failure.message : "Especifica la relación con el contacto de emergencia."; }
+    }
     return stage.question ? questionError(stage.question, effective[stage.key] || "") : "";
   }
   function focusField(name?: string) { requestAnimationFrame(() => document.querySelector<HTMLElement>(name ? `[name="${name}"]` : "[data-current-field]")?.focus()); }
@@ -295,9 +300,9 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       {current.key === "emergencyContactName" && current.question ? <div className="grid gap-5 sm:grid-cols-2">
         <QuestionField question={{ ...current.question, fieldKey: "emergencyContactFirstName", label: "Nombre", type: "TEXT" }} value={values.emergencyContactFirstName || ""} onChange={value => changeValue("emergencyContactFirstName", value)} invalid={Boolean(error) && !/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim())} showLabel />
         <QuestionField question={{ ...current.question, fieldKey: "emergencyContactLastName", label: "Apellido", type: "TEXT" }} value={values.emergencyContactLastName || ""} onChange={value => changeValue("emergencyContactLastName", value)} invalid={Boolean(error) && !/^[A-Z ]{2,}$/.test((values.emergencyContactLastName || "").trim())} showLabel />
-      </div> : current.question ? <QuestionField key={current.key} question={current.question} value={effective[current.key] || ""} onChange={value => changeValue(current.key, value)} invalid={Boolean(error)} /> : null}
+      </div> : current.key === "emergencyContactRelation" && current.question ? <EmergencyRelationField question={current.question} value={effective.emergencyContactRelation || ""} other={values.emergencyContactRelationOther || ""} onChange={value => { changeValue("emergencyContactRelation", value); if (value !== "OTRO") changeValue("emergencyContactRelationOther", ""); }} onOtherChange={value => changeValue("emergencyContactRelationOther", value)} invalid={Boolean(error)} /> : current.question ? <QuestionField key={current.key} question={current.question} value={effective[current.key] || ""} onChange={value => changeValue(current.key, value)} invalid={Boolean(error)} /> : null}
       {current.key === "review" ? <dl className="divide-y divide-slate-200 border-y border-slate-200">
-        {reviewQuestions.map(stage => <ReviewRow key={stage.key} label={stage.title} value={effective[stage.key] || "No indicado"} onEdit={() => { editing.current = true; goTo(stage.key); }} disabled={loading} />)}
+        {reviewQuestions.map(stage => <ReviewRow key={stage.key} label={stage.title} value={stage.key === "emergencyContactRelation" ? emergencyContactRelationLabel(effective[stage.key] || "", values.emergencyContactRelationOther || "") : effective[stage.key] || "No indicado"} onEdit={() => { editing.current = true; goTo(stage.key); }} disabled={loading} />)}
         <ReviewRow label="WhatsApp" value={whatsappMode === "NONE" ? "No tiene WhatsApp" : effective.whatsappPhone} onEdit={() => { editing.current = true; goTo("whatsapp"); }} disabled={loading} />
       </dl> : null}
       {notFound ? <div role="status" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-4"><p className="font-bold text-amber-950">{notFound.message}</p><p className="mt-2 text-sm text-amber-900">Si necesitas asistencia, comunícate con Servicio al cliente EDECOOP.</p><a href={notFound.whatsappUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#128c7e] px-4 py-3 font-bold text-white shadow-sm transition-colors hover:bg-[#0f766e] focus:outline-none focus:ring-4 focus:ring-emerald-200 sm:w-auto"><MessageCircle size={20} fill="currentColor" aria-hidden="true" />Contactar Servicio al cliente EDECOOP por WhatsApp</a></div> : null}
@@ -327,5 +332,19 @@ function QuestionField({ question, value, onChange, invalid, showLabel = false }
     {question.type === "SELECT" ? <select {...shared} value={value} onChange={event => onChange(event.target.value)}><option value="">Seleccione</option>{question.options?.map(option => <option key={option} value={option}>{option}</option>)}</select> :
       <input {...shared} value={value} type={question.type === "EMAIL" ? "email" : question.type === "PHONE" ? "tel" : "text"} inputMode={question.type === "PHONE" || question.type === "NUMBER" ? "numeric" : question.type === "EMAIL" ? "email" : "text"} maxLength={question.type === "PHONE" ? 10 : undefined}
         onChange={event => { let value = event.target.value; if (question.type === "PHONE" || question.type === "NUMBER") value = value.replace(/\D/g, "").slice(0, question.type === "PHONE" ? 10 : undefined); else if (question.type === "TEXT") value = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z ]/g, ""); onChange(value); }} />}
+  </div>;
+}
+
+function EmergencyRelationField({ question, value, other, onChange, onOtherChange, invalid }: { question: DataUpdateQuestion; value: string; other: string; onChange: (value: string) => void; onOtherChange: (value: string) => void; invalid: boolean }) {
+  return <div className="grid gap-4">
+    <label htmlFor="field-emergencyContactRelation" className="sr-only">{question.label}</label>
+    <select data-current-field id="field-emergencyContactRelation" name="emergencyContactRelation" value={value} onChange={event => onChange(event.target.value)} className={inputClass} aria-invalid={invalid} aria-describedby={invalid ? "data-update-error" : undefined}>
+      <option value="">Seleccione</option>
+      {question.options?.map(option => <option key={option} value={option}>{emergencyContactRelationLabel(option)}</option>)}
+    </select>
+    {value === "OTRO" ? <div>
+      <label htmlFor="field-emergencyContactRelationOther" className="mb-2 block text-sm font-bold text-slate-700">Especifica la relación</label>
+      <input id="field-emergencyContactRelationOther" name="emergencyContactRelationOther" value={other} onChange={event => onOtherChange(event.target.value.toUpperCase().slice(0, 50))} autoComplete="off" maxLength={50} className={inputClass} aria-invalid={invalid} aria-describedby={invalid ? "data-update-error" : undefined} />
+    </div> : null}
   </div>;
 }
