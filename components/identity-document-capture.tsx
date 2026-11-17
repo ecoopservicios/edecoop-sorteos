@@ -12,6 +12,10 @@ type OcrEngine = {
 
 let ocrEnginePromise: Promise<OcrEngine> | null = null;
 
+function usesSafariOcr() {
+  return /AppleWebKit/i.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Android|Edg\/|OPR\//i.test(navigator.userAgent);
+}
+
 function getOcrEngine() {
   if (!ocrEnginePromise) {
     ocrEnginePromise = import("@paddleocr/paddleocr-js")
@@ -20,7 +24,8 @@ function getOcrEngine() {
         textRecognitionModelName: "PP-OCRv6_tiny_rec",
         textDetectionModelAsset: { url: new URL("/ocr/models/PP-OCRv6_tiny_det.tar", window.location.origin).href },
         textRecognitionModelAsset: { url: new URL("/ocr/models/PP-OCRv6_tiny_rec.tar", window.location.origin).href },
-        worker: true,
+        // Safari uses the CPU-only main-thread runtime; the SDK worker embeds JSEP.
+        worker: !usesSafariOcr(),
         // Match the runtime bundled in PaddleOCR's worker; keep WASM imports same-origin.
         ortOptions: {
           backend: "wasm",
@@ -252,13 +257,13 @@ export function IdentityDocumentCapture({
     } catch (error) {
       setStatus("IDLE");
       const detail = error instanceof Error ? error.message : "";
-      const runtimeFailed = !engine || /initWasm|no available backend|WebAssembly|failed to fetch dynamically imported module/i.test(detail);
+      const runtimeFailed = !engine || /initWasm|no available backend|WebAssembly|OffscreenCanvas|ImageBitmap|failed to fetch dynamically imported module/i.test(detail);
       if (runtimeFailed) {
         ocrEnginePromise = null;
         void engine?.dispose().catch(() => {});
       }
       setMessage(runtimeFailed
-        ? "No se pudo iniciar la lectura del documento. Revisa tu conexión y presiona Validar documento para intentar de nuevo; no necesitas repetir la foto."
+        ? `No se pudo iniciar la lectura. ${usesSafariOcr() ? "En Safari puedes continuar desde Chrome mientras revisamos la compatibilidad." : "Vuelve a presionar Validar documento; no necesitas repetir la foto."} Código: ${usesSafariOcr() ? "OCR-SAFARI" : "OCR-INIT"}. Detalle: ${detail.replace(/https?:\/\/\S+/g, "[recurso OCR]").slice(0, 240) || "Error de inicialización."}`
         : detail || "No se pudo validar el documento.");
     }
   }
@@ -288,7 +293,7 @@ export function IdentityDocumentCapture({
         <button type="button" onClick={analyze} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">{status !== "IDLE" ? <LoaderCircle size={19} className="animate-spin" /> : <ShieldCheck size={19} />}{status === "LOADING" ? "Preparando lectura..." : status === "READING" ? "Leyendo documento..." : status === "REFINING" ? "Mejorando lectura..." : status === "CHECKING" ? "Confirmando datos..." : "Validar documento"}</button>
       </div>
     </div> : <button type="button" onClick={openCamera} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
-    {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
+    {message ? <p role="alert" className="mt-5 break-words border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
 
     {cameraOpen ? createPortal(<div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-[100] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-950 text-white">
       <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">Fotografía tu {documentLabel}</p><p className="text-sm text-slate-300">Ubícalo completo y muévelo ligeramente dentro del marco</p></div><button type="button" onClick={closeCamera} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>

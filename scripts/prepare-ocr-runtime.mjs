@@ -20,7 +20,7 @@ if (!worker.includes(`ONNX Runtime Web v${runtimeVersion}`)) {
 
 const destination = join(root, "public", "ocr", "onnxruntime", runtimeVersion);
 await mkdir(destination, { recursive: true });
-for (const name of ["ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm"]) {
+for (const name of ["ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm"]) {
   await copyFile(join(runtimeRoot, "dist", name), join(destination, name));
 }
 for (const [name, expectedHash] of [

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { join } from "node:path";
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -33,6 +34,11 @@ const nextConfig: NextConfig = {
   webpack(config, { isServer }) {
     if (!isServer) {
       config.resolve.fallback = { ...config.resolve.fallback, fs: false };
+      // The main-thread Safari path must not load the JSEP/WebGPU runtime.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "onnxruntime-web$": join(process.cwd(), "node_modules/onnxruntime-web-ocr/dist/ort.wasm.min.mjs")
+      };
     }
     return config;
   },
