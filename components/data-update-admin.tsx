@@ -578,7 +578,7 @@ export function DataUpdateAdmin({
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-black text-slate-950">Cargar base de socios</h3>
-                <p className="text-sm text-slate-600">Use el template descargable y cargue una empresa a la vez.</p>
+                <p className="text-sm text-slate-600">Columnas: NOMBRE, APELLIDO, NIE, CEDULA y EMPRESA. Carga una empresa a la vez; debe coincidir con la seleccionada.</p>
               </div>
               <button type="button" onClick={() => setUploadOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50" title="Cerrar">
                 <X size={18} />

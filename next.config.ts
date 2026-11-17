@@ -43,6 +43,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   outputFileTracingIncludes: {
+    "/api/actualizacion-datos/base/plantilla": ["./resources/templates/plantilla-base-socios.xlsx"],
     "/api/souvenir/imprimir": ["./public/fonts/Vera.ttf", "./public/fonts/VeraBd.ttf"]
   },
   experimental: {

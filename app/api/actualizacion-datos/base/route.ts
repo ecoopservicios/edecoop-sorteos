@@ -3,8 +3,7 @@ import { Prisma } from "@prisma/client";
 import { jsonError } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { normalizeDigits } from "@/lib/data-update";
-import { validatePersonName } from "@/lib/participants";
+import { directoryDocument, directoryEmployee, directoryName } from "@/lib/member-directory-upload";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -13,16 +12,15 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const enrollmentCompanyId = String(payload.enrollmentCompanyId || "");
-    const firstName = validatePersonName(String(payload.firstName || ""), "Nombres");
-    const lastName = validatePersonName(String(payload.lastName || ""), "Apellidos");
-    const documentId = normalizeDigits(String(payload.documentId || "")) || null;
-    const employeeNumber = normalizeDigits(String(payload.employeeNumber || "")) || null;
+    const firstName = directoryName(String(payload.firstName || ""), "Nombre");
+    const lastName = directoryName(String(payload.lastName || ""), "Apellido");
 
     const company = await prisma.enrollmentCompany.findFirst({
       where: { id: enrollmentCompanyId, isActive: true, dataUpdateEnabled: true }
     });
-    if (!company) return jsonError("Empresa no disponible para actualizacion de datos.", 422);
-    if (!documentId && !employeeNumber) return jsonError("Debe indicar cedula o numero de empleado.", 422);
+    if (!company || !company.dataUpdateLookupField) return jsonError("Empresa no disponible para actualización de datos.", 422);
+    const documentId = directoryDocument(String(payload.documentId || ""));
+    const employeeNumber = directoryEmployee(String(payload.employeeNumber || ""), company.dataUpdateLookupField === "EMPLOYEE_NUMBER");
 
     const member = await prisma.memberDirectory.create({
       data: {

@@ -13,6 +13,7 @@
     "build": "prisma generate && next build --webpack",
     "start": "next start",
     "test:identity": "tsx --test tests/identity-document.test.ts",
+    "test:member-upload": "tsx --test tests/member-directory-upload.test.ts",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
