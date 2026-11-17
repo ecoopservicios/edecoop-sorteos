@@ -6,6 +6,8 @@ import { Camera, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, X } from "l
 
 type OcrLine = { text: string; score: number };
 type OcrEngine = { predict: (input: Blob, params?: Record<string, unknown>) => Promise<Array<{ items: OcrLine[] }>> };
+type CaptureStage = "FRONT" | "TILT";
+type TiltDirection = "izquierda" | "derecha";
 
 let ocrEnginePromise: Promise<OcrEngine> | null = null;
 
@@ -54,6 +56,42 @@ async function cameraFrame(video: HTMLVideoElement, frame: HTMLDivElement, portr
   return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("No se pudo capturar la fotografía.")), "image/jpeg", 0.9));
 }
 
+async function imagePixels(blob: Blob, portrait: boolean) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("No se pudo revisar la captura."));
+      element.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = portrait ? 72 : 112;
+    canvas.height = portrait ? 112 : 72;
+    const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+    if (!context) throw new Error("No se pudo revisar la captura.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return context.getImageData(0, 0, canvas.width, canvas.height).data;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function hasLiveMovement(front: Blob, tilted: Blob, portrait: boolean) {
+  const [first, second] = await Promise.all([imagePixels(front, portrait), imagePixels(tilted, portrait)]);
+  let difference = 0;
+  let changed = 0;
+  const pixels = first.length / 4;
+  for (let index = 0; index < first.length; index += 4) {
+    const delta = (Math.abs(first[index] - second[index]) + Math.abs(first[index + 1] - second[index + 1]) + Math.abs(first[index + 2] - second[index + 2])) / 3;
+    difference += delta;
+    if (delta >= 18) changed++;
+  }
+  const meanDifference = difference / pixels;
+  const changedRatio = changed / pixels;
+  return meanDifference >= 9 && meanDifference <= 105 && changedRatio >= 0.12;
+}
+
 export function IdentityDocumentCapture({
   kind,
   verificationToken,
@@ -69,6 +107,9 @@ export function IdentityDocumentCapture({
   const documentLabel = portrait ? "carnet de empleado" : "cédula";
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [captureStage, setCaptureStage] = useState<CaptureStage>("FRONT");
+  const [frontPhoto, setFrontPhoto] = useState<Blob | null>(null);
+  const [tiltDirection, setTiltDirection] = useState<TiltDirection>("derecha");
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [status, setStatus] = useState<"IDLE" | "LOADING" | "READING" | "VERIFIED">("IDLE");
@@ -117,11 +158,41 @@ export function IdentityDocumentCapture({
     const frame = frameRef.current;
     if (!video?.videoWidth || !frame) return setCameraError("Espera un momento mientras inicia la cámara.");
     try {
-      setSelectedPhoto(await cameraFrame(video, frame, portrait));
+      setCameraError("");
+      const captured = await cameraFrame(video, frame, portrait);
+      if (captureStage === "FRONT") {
+        setFrontPhoto(captured);
+        setCaptureStage("TILT");
+        return;
+      }
+      if (!frontPhoto || !await hasLiveMovement(frontPhoto, captured, portrait)) {
+        setFrontPhoto(null);
+        setCaptureStage("FRONT");
+        setTiltDirection(Math.random() < 0.5 ? "izquierda" : "derecha");
+        setCameraError("No detectamos el movimiento del documento. Colócalo de frente y repite la prueba sin usar una fotografía o pantalla.");
+        return;
+      }
+      setSelectedPhoto(frontPhoto);
+      setFrontPhoto(null);
+      setCaptureStage("FRONT");
       setCameraOpen(false);
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : "No se pudo capturar la fotografía.");
     }
+  }
+
+  function openCamera() {
+    setFrontPhoto(null);
+    setCaptureStage("FRONT");
+    setTiltDirection(Math.random() < 0.5 ? "izquierda" : "derecha");
+    setCameraError("");
+    setCameraOpen(true);
+  }
+
+  function closeCamera() {
+    setFrontPhoto(null);
+    setCaptureStage("FRONT");
+    setCameraOpen(false);
   }
 
   async function analyze() {
@@ -184,11 +255,11 @@ export function IdentityDocumentCapture({
         <button type="button" onClick={resetPhoto} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={19} />Repetir foto</button>
         <button type="button" onClick={analyze} disabled={status !== "IDLE"} className="inline-flex min-h-12 items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800 disabled:opacity-60">{status !== "IDLE" ? <LoaderCircle size={19} className="animate-spin" /> : <ShieldCheck size={19} />}{status === "LOADING" ? "Preparando lectura..." : status === "READING" ? "Leyendo documento..." : "Validar documento"}</button>
       </div>
-    </div> : <button type="button" onClick={() => setCameraOpen(true)} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
+    </div> : <button type="button" onClick={openCamera} className="inline-flex min-h-14 w-full items-center justify-center gap-2 bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"><Camera size={21} />Abrir cámara</button>}
     {message ? <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-medium text-amber-950">{message}</p> : null}
 
     {cameraOpen ? createPortal(<div role="dialog" aria-modal="true" aria-label={`Fotografiar ${documentLabel}`} className="fixed inset-0 z-[100] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-950 text-white">
-      <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">Fotografía tu {documentLabel}</p><p className="text-sm text-slate-300">Ubícalo completo dentro del marco</p></div><button type="button" onClick={() => setCameraOpen(false)} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
+      <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3"><div><p className="font-black">{captureStage === "FRONT" ? `Coloca tu ${documentLabel} de frente` : `Inclínalo hacia la ${tiltDirection}`}</p><p className="text-sm text-slate-300">{captureStage === "FRONT" ? "Ubícalo completo y sin reflejos dentro del marco" : "Mantén el documento dentro del marco y toma la segunda captura"}</p></div><button type="button" onClick={closeCamera} aria-label="Cerrar cámara" className="inline-flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10"><X size={26} /></button></header>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
         <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full max-w-none object-cover" />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 p-4">
@@ -198,7 +269,7 @@ export function IdentityDocumentCapture({
         </div>
       </div>
       {cameraError ? <p role="alert" className="shrink-0 bg-red-950 px-4 py-3 text-center text-sm">{cameraError}</p> : null}
-      <footer className="flex shrink-0 items-center justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4"><button type="button" onClick={takePhoto} aria-label="Tomar fotografía" className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
+      <footer className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"><p className="text-xs font-bold uppercase text-slate-300">Captura {captureStage === "FRONT" ? "1" : "2"} de 2</p><button type="button" onClick={takePhoto} aria-label={captureStage === "FRONT" ? "Tomar primera fotografía" : "Tomar segunda fotografía"} className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 shadow-lg"><Camera size={27} /></button></footer>
     </div>, document.body) : null}
   </div>;
 }
