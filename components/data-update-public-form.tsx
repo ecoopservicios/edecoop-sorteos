@@ -87,6 +87,16 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   };
   useEffect(() => { if (stageKey !== "company" || done) heading.current?.focus(); }, [stageKey, done]);
   useEffect(() => {
+    function clearRestoredForm(event: PageTransitionEvent) {
+      if (!event.persisted) return;
+      setCompanyId(""); setLookupValue(""); setDocumentId(""); setMember(null);
+      setVerificationToken(""); setDocumentVerified(false); setValues({}); setWhatsappMode("");
+      setStageKey("company"); setError(""); setNotFound(null); editing.current = false;
+    }
+    window.addEventListener("pageshow", clearRestoredForm);
+    return () => window.removeEventListener("pageshow", clearRestoredForm);
+  }, []);
+  useEffect(() => {
     setReady(true);
     const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     const touchFirst = window.matchMedia("(pointer: coarse)").matches;
@@ -111,6 +121,23 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     }
   }
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
+  function goBack() {
+    const target = stages[step - 1];
+    if (!target) return;
+    setValues({}); setWhatsappMode(""); setError(""); setNotFound(null); editing.current = false;
+    if (target.key === "company") {
+      setCompanyId(""); setLookupValue(""); setDocumentId(""); setMember(null);
+      setVerificationToken(""); setDocumentVerified(false);
+    } else if (target.key === "lookup") {
+      setLookupValue(""); setDocumentId(""); setMember(null);
+      setVerificationToken(""); setDocumentVerified(false);
+    } else if (target.key === "document") {
+      setDocumentId(""); setMember(null); setVerificationToken(""); setDocumentVerified(false);
+    } else if (target.key === "identityPhoto") {
+      setDocumentVerified(false);
+    }
+    setStageKey(target.key);
+  }
   function changeValue(key: string, value: string) { setValues(previous => ({ ...previous, [key]: value })); setError(""); }
   function stageError(stage: Stage) {
     if (stage.key === "company" && !selected) return "Selecciona tu empresa.";
@@ -223,7 +250,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       <div className="mb-2 flex items-center justify-between gap-4 text-sm"><span className="font-bold text-emerald-800">Paso {step + 1} de {stages.length}</span><span className="tabular-nums text-slate-500">{Math.round((step + 1) / stages.length * 100)}%</span></div>
       <div role="progressbar" aria-label="Progreso de la actualización" aria-valuemin={0} aria-valuemax={stages.length} aria-valuenow={step + 1} aria-valuetext={current.title} className="h-2 overflow-hidden rounded-sm bg-slate-200"><div className="h-full bg-emerald-700 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${(step + 1) / stages.length * 100}%` }} /></div>
     </div>
-    <form onSubmit={advance} method="post" noValidate aria-busy={loading} className="border-t border-slate-200 px-5 py-7 sm:px-8 sm:py-8">
+    <form onSubmit={advance} method="post" autoComplete="off" noValidate aria-busy={loading} className="border-t border-slate-200 px-5 py-7 sm:px-8 sm:py-8">
       <fieldset disabled={!ready || loading} className="contents">
       <div key={current.key} className="data-update-step">
       <h2 ref={heading} tabIndex={-1} className="mb-6 text-xl font-black text-slate-950 outline-none">{current.title}</h2>
@@ -236,7 +263,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       {current.key === "lookup" || current.key === "document" ? <div>
         <label htmlFor="data-update-lookup" className="sr-only">{current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? "Cédula" : "Número de empleado"}</label>
         <div className="relative"><Search size={20} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input data-current-field id="data-update-lookup" name="data-update-lookup" inputMode="numeric" autoComplete="off" disabled={loading} value={current.key === "document" ? documentId : lookupValue}
+          <input data-current-field id="data-update-lookup" name="data-update-lookup" inputMode="numeric" autoComplete="off" data-lpignore="true" data-1p-ignore="true" disabled={loading} value={current.key === "document" ? documentId : lookupValue}
             onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, current.key === "document" || selected?.lookupField === "DOCUMENT_ID" ? 11 : 5); if (current.key === "document") setDocumentId(value); else setLookupValue(value); setVerificationToken(""); setDocumentVerified(false); setError(""); setNotFound(null); }}
             className={`${inputClass} pl-12`} aria-describedby={error ? "data-update-error" : undefined} aria-invalid={Boolean(error)} />
         </div>
@@ -263,7 +290,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       {error ? <p id="data-update-error" role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-sm font-medium text-red-800">{error}</p> : null}
       </div>
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
-        {step > 0 ? <button type="button" disabled={loading} onClick={() => { editing.current = false; goTo(stages[step - 1].key); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
+        {step > 0 ? <button type="button" disabled={loading} onClick={goBack} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
         <button type="submit" disabled={loading || (current.key === "company" && !companies.length)} className={primaryClass}>
           {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : null}
           {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : editing.current ? "Volver al resumen" : "Continuar"}
@@ -281,10 +308,10 @@ function ReviewRow({ label, value, onEdit, disabled }: { label: string; value: s
 
 function QuestionField({ question, value, onChange, invalid, showLabel = false }: { question: DataUpdateQuestion; value: string; onChange: (value: string) => void; invalid: boolean; showLabel?: boolean }) {
   const id = `field-${question.fieldKey}`;
-  const shared = { id, name: question.fieldKey, className: inputClass, "data-current-field": true, "aria-invalid": invalid, "aria-describedby": invalid ? "data-update-error" : undefined };
+  const shared = { id, name: question.fieldKey, className: inputClass, autoComplete: "off", "data-lpignore": "true", "data-1p-ignore": "true", "data-current-field": true, "aria-invalid": invalid, "aria-describedby": invalid ? "data-update-error" : undefined };
   return <div><label htmlFor={id} className={showLabel ? "mb-2 block text-sm font-bold text-slate-700" : "sr-only"}>{question.label}</label>
     {question.type === "SELECT" ? <select {...shared} value={value} onChange={event => onChange(event.target.value)}><option value="">Seleccione</option>{question.options?.map(option => <option key={option} value={option}>{option}</option>)}</select> :
-      <input {...shared} value={value} type={question.type === "EMAIL" ? "email" : question.type === "PHONE" ? "tel" : "text"} inputMode={question.type === "PHONE" || question.type === "NUMBER" ? "numeric" : question.type === "EMAIL" ? "email" : "text"} autoComplete={question.fieldKey === "personalEmail" ? "email" : question.fieldKey === "personalPhone" ? "tel-national" : "off"} maxLength={question.type === "PHONE" ? 10 : undefined}
+      <input {...shared} value={value} type={question.type === "EMAIL" ? "email" : question.type === "PHONE" ? "tel" : "text"} inputMode={question.type === "PHONE" || question.type === "NUMBER" ? "numeric" : question.type === "EMAIL" ? "email" : "text"} maxLength={question.type === "PHONE" ? 10 : undefined}
         onChange={event => { let value = event.target.value; if (question.type === "PHONE" || question.type === "NUMBER") value = value.replace(/\D/g, "").slice(0, question.type === "PHONE" ? 10 : undefined); else if (question.type === "TEXT") value = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z ]/g, ""); onChange(value); }} />}
   </div>;
 }
