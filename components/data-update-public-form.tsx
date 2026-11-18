@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, IdCard, LoaderCircle, Mail, MessageCircle, Monitor, Pencil, Search, Send, Smartphone } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { IdentityDocumentCapture } from "@/components/identity-document-capture";
+import { DataUpdateIdentityHandoff } from "@/components/data-update-identity-handoff";
 import { emergencyContactRelationLabel, normalizeOtherEmergencyRelation } from "@/lib/emergency-contact-relation";
 
 type CompanyOption = { id: string; companyName: string; lookupField: "DOCUMENT_ID" | "EMPLOYEE_NUMBER" };
@@ -46,8 +47,8 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   const [stageKey, setStageKey] = useState("company");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
-  const [desktopAdvice, setDesktopAdvice] = useState<"CHECKING" | "SHOW" | "NO_CAMERA" | "HIDDEN">("CHECKING");
-  const [desktopCameraChecking, setDesktopCameraChecking] = useState(false);
+  const [desktopAdvice, setDesktopAdvice] = useState<"CHECKING" | "SHOW" | "HIDDEN">("CHECKING");
+  const [desktopDevice, setDesktopDevice] = useState(false);
   const [done, setDone] = useState(initialCompleted ? texts.successMessage : "");
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +73,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       { key: "company", title: "Selecciona tu empresa" },
       { key: "lookup", title: selected?.lookupField === "DOCUMENT_ID" ? "Consulta con tu cédula" : "Consulta con tu número de empleado" },
       ...(selected?.lookupField === "EMPLOYEE_NUMBER" ? [{ key: "document", title: "Valida tu cédula" }] : []),
-      { key: "identityPhoto", title: offersIdentityChoice && !identityKind ? "Elige cómo validar tu identidad" : identityKind === "EMPLOYEE_CARD" ? "Fotografía tu carnet de empleado" : "Fotografía tu cédula" },
+      { key: "identityPhoto", title: offersIdentityChoice && !identityKind ? "Elige cómo validar tu identidad" : desktopDevice ? "Valida tu identidad con el teléfono" : identityKind === "EMPLOYEE_CARD" ? "Fotografía tu carnet de empleado" : "Fotografía tu cédula" },
       ...question("personalPhone"),
       { key: "whatsapp", title: "¿Tu teléfono personal tiene WhatsApp?" },
       ...(whatsappMode === "OTHER" ? question("whatsappPhone") : []),
@@ -83,7 +84,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       ...questions.filter(q => !q.isSystem).map(q => ({ key: q.fieldKey, title: q.label, question: q })),
       { key: "review", title: "Revisa tu actualización" }
     ];
-  }, [identityKind, offersIdentityChoice, questions, selected?.lookupField, whatsappMode]);
+  }, [desktopDevice, identityKind, offersIdentityChoice, questions, selected?.lookupField, whatsappMode]);
   const step = Math.max(0, stages.findIndex(s => s.key === stageKey));
   const current = stages[step];
   const effective: Record<string, string> = {
@@ -107,24 +108,15 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     const touchFirst = window.matchMedia("(pointer: coarse)").matches;
     const compactScreen = window.innerWidth < 768;
+    const desktop = !mobileUserAgent && !touchFirst && !compactScreen;
+    setDesktopDevice(desktop);
     let alreadySeen = false;
-    try { alreadySeen = sessionStorage.getItem("edecoop-data-update-desktop-advice-v2") === "seen"; } catch { /* Continue without session persistence. */ }
-    setDesktopAdvice(!mobileUserAgent && !touchFirst && !compactScreen && !alreadySeen ? "SHOW" : "HIDDEN");
+    try { alreadySeen = sessionStorage.getItem("edecoop-data-update-desktop-advice-v3") === "seen"; } catch { /* Continue without session persistence. */ }
+    setDesktopAdvice(desktop && !alreadySeen ? "SHOW" : "HIDDEN");
   }, []);
-  async function continueOnDesktop() {
-    if (desktopCameraChecking) return;
-    if (!navigator.mediaDevices?.getUserMedia) return setDesktopAdvice("NO_CAMERA");
-    setDesktopCameraChecking(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      stream.getTracks().forEach(track => track.stop());
-      try { sessionStorage.setItem("edecoop-data-update-desktop-advice-v2", "seen"); } catch { /* The notice can still be dismissed. */ }
-      setDesktopAdvice("HIDDEN");
-    } catch {
-      setDesktopAdvice("NO_CAMERA");
-    } finally {
-      setDesktopCameraChecking(false);
-    }
+  function continueOnDesktop() {
+    try { sessionStorage.setItem("edecoop-data-update-desktop-advice-v3", "seen"); } catch { /* The notice can still be dismissed. */ }
+    setDesktopAdvice("HIDDEN");
   }
   function goTo(key: string) { setError(""); setNotFound(null); setStageKey(key); }
   function goBack() {
@@ -150,7 +142,7 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     if (stage.key === "lookup" && !(selected?.lookupField === "DOCUMENT_ID" ? /^\d{11}$/ : /^\d{1,5}$/).test(lookupValue)) return selected?.lookupField === "DOCUMENT_ID" ? "Ingresa los 11 números de tu cédula." : "Ingresa tu número de empleado (hasta 5 números).";
     if (stage.key === "document" && !/^\d{11}$/.test(documentId)) return "Ingresa los 11 números de tu cédula.";
     if (stage.key === "identityPhoto" && !identityKind) return "Selecciona si validarás con tu cédula dominicana o con tu carnet de empleado.";
-    if (stage.key === "identityPhoto" && !documentVerified) return "Toma una fotografía y valida el documento para continuar.";
+    if (stage.key === "identityPhoto" && !documentVerified) return desktopDevice ? "Escanea el código QR y valida el documento desde tu teléfono para continuar." : "Toma una fotografía y valida el documento para continuar.";
     if (stage.key === "whatsapp" && !whatsappMode) return "Selecciona una opción de WhatsApp.";
     if (stage.key === "emergencyContactName") {
       if (!/^[A-Z ]{2,}$/.test((values.emergencyContactFirstName || "").trim())) return "Ingresa el nombre del contacto de emergencia (al menos dos letras).";
@@ -163,6 +155,14 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     return stage.question ? questionError(stage.question, effective[stage.key] || "") : "";
   }
   function focusField(name?: string) { requestAnimationFrame(() => document.querySelector<HTMLElement>(name ? `[name="${name}"]` : "[data-current-field]")?.focus()); }
+  function identityValidated(token?: string) {
+    if (!token) return;
+    setVerificationToken(token); setDocumentVerified(true); setError("");
+    if (desktopDevice) {
+      const next = stages[step + 1];
+      if (next) window.setTimeout(() => goTo(next.key), 650);
+    }
+  }
   async function advance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current) return;
@@ -241,16 +241,19 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
     {resendError ? <p role="alert" className="mt-5 border-l-4 border-red-500 bg-red-50 p-3 text-left text-sm font-medium text-red-800">{resendError}</p> : null}
   </section>;
   if (desktopAdvice === "CHECKING") return <section aria-label="Preparando formulario" className="mx-auto flex min-h-72 w-full max-w-xl items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm"><LoaderCircle size={28} className="animate-spin text-emerald-700" /></section>;
-  if (desktopAdvice === "SHOW" || desktopAdvice === "NO_CAMERA") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
+  if (desktopAdvice === "SHOW") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
     <header className="flex items-center gap-4 border-b border-slate-200 px-6 py-5 sm:px-8"><img src="/edecoop-logo.png" alt="EDECOOP" className="h-auto w-20" /><h1 className="text-xl font-black text-slate-950 sm:text-2xl">Actualización de datos</h1></header>
-    <div className="grid items-center gap-7 px-6 py-8 sm:grid-cols-[1fr_210px] sm:px-8">
-      <div><div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div><h2 className="text-2xl font-black text-slate-950">{desktopAdvice === "NO_CAMERA" ? "Continúa desde tu teléfono" : "Escanea con el teléfono o continúa desde este dispositivo"}</h2><p className="mt-4 leading-relaxed text-slate-600">Necesitarás fotografiar tu cédula o carnet de empleado. Desde el teléfono podrás usar la cámara, encuadrar el documento y validarlo con mayor facilidad.</p>{desktopAdvice === "SHOW" ? <div className="mt-6 flex items-start gap-3 border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>Para continuar aquí, el navegador solicitará permiso para utilizar la cámara de este dispositivo.</p></div> : <div role="alert" className="mt-6 border-l-4 border-red-500 bg-red-50 p-4 text-sm font-semibold text-red-900">No encontramos una cámara disponible o el navegador no tiene permiso para utilizarla. Escanea el código con un teléfono para continuar.</div>}</div>
-      <div className="text-center"><div className="border border-slate-200 bg-white p-3"><img src="/api/actualizacion-datos/qr-publico" alt="Código QR para abrir la actualización de datos en el teléfono" className="h-auto w-full" /></div><p className="mt-3 text-sm font-bold text-slate-700">Escanea con la cámara de tu teléfono</p></div>
+    <div className="px-6 py-8 sm:px-8">
+      <div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div>
+      <h2 className="text-2xl font-black text-slate-950">Validación segura con tu teléfono</h2>
+      <p className="mt-4 leading-relaxed text-slate-600">Para continuar aquí, en el paso de validación deberás escanear un código QR con tu teléfono y confirmar tu identidad mediante la cédula o el carnet de empleado.</p>
+      <div className="mt-6 flex items-start gap-3 border-l-4 border-emerald-600 bg-emerald-50 p-4 text-sm text-emerald-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>La computadora no utilizará su cámara. Después de validar el documento en el teléfono, este formulario continuará automáticamente.</p></div>
     </div>
-    {desktopAdvice === "SHOW" ? <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} disabled={desktopCameraChecking} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-5 py-3 font-bold text-slate-800 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60 sm:w-auto">{desktopCameraChecking ? <LoaderCircle size={19} className="animate-spin" /> : <Monitor size={19} />}{desktopCameraChecking ? "Verificando cámara..." : "Continuar desde este dispositivo"}</button></div> : null}
+    <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 sm:w-auto"><ArrowRight size={19} />Comenzar actualización</button></div>
   </section>;
   const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");
+  const waitingForPhone = current.key === "identityPhoto" && desktopDevice && !documentVerified;
   return <section className="mx-auto w-full max-w-xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
     <header className="flex items-center gap-4 border-b border-slate-200 px-5 py-5 sm:px-8">
       <img src="/edecoop-logo.png" alt="EDECOOP" className="h-auto w-16 shrink-0 sm:w-20" />
@@ -286,12 +289,12 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
         {offersIdentityChoice ? <fieldset className="mb-6"><legend className="sr-only">Documento para validar identidad</legend><div className="grid gap-3 sm:grid-cols-2">
           {([ ["DOCUMENT_ID", "Cédula dominicana", IdCard], ["EMPLOYEE_CARD", employeeCardLabel, BadgeCheck] ] as const).map(([value, label, Icon]) => <button key={value} type="button" data-current-field={identityKind ? undefined : true} aria-pressed={identityKind === value} onClick={() => { setIdentityKind(value); setDocumentVerified(false); setError(""); }} className={`flex min-h-20 items-center gap-3 border-2 px-4 py-3 text-left font-bold transition-colors ${identityKind === value ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-slate-300 bg-white text-slate-800 hover:border-emerald-500"}`}><Icon size={26} className="shrink-0" /><span>{label}</span></button>)}
         </div></fieldset> : null}
-        {identityKind ? <IdentityDocumentCapture
+        {identityKind ? desktopDevice ? <DataUpdateIdentityHandoff key={`${member.id}-${identityKind}`} kind={identityKind} verificationToken={verificationToken} onVerified={identityValidated} /> : <IdentityDocumentCapture
           key={`${member.id}-${identityKind}`}
           kind={identityKind}
           verificationToken={verificationToken}
           verified={documentVerified}
-          onVerified={token => { setVerificationToken(token); setDocumentVerified(true); setError(""); }}
+          onVerified={identityValidated}
         /> : null}
       </div> : null}
       {current.key === "whatsapp" ? <fieldset><legend className="sr-only">Disponibilidad de WhatsApp</legend>
@@ -310,11 +313,11 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
       </div>
       <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
         {step > 0 ? <button type="button" disabled={loading} onClick={goBack} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"><ArrowLeft size={18} />Atrás</button> : <span />}
-        <button type="submit" disabled={loading || (current.key === "company" && !companies.length)} className={primaryClass}>
+        {!waitingForPhone ? <button type="submit" disabled={loading || (current.key === "company" && !companies.length)} className={primaryClass}>
           {loading ? <LoaderCircle size={18} className="animate-spin" /> : current.key === "review" ? <Send size={18} /> : current.key === "lookup" || current.key === "document" ? <Search size={18} /> : null}
           {loading ? (current.key === "review" ? "Enviando..." : "Validando...") : current.key === "review" ? "Enviar actualización" : editing.current ? "Volver al resumen" : "Continuar"}
           {!loading && !["review", "lookup", "document"].includes(current.key) ? <ArrowRight size={18} /> : null}
-        </button>
+        </button> : <p role="status" className="flex min-h-12 items-center justify-center gap-2 text-sm font-bold text-slate-600"><LoaderCircle size={18} className="animate-spin text-emerald-700" />Esperando validación desde el teléfono</p>}
       </div>
       </fieldset>
     </form>

@@ -518,6 +518,24 @@ model MemberDataUpdateSubmission {
   @@index([emailVerificationTokenHash])
 }
 
+model DataUpdateIdentityHandoff {
+  id                String   @id @default(cuid())
+  memberDirectoryId String
+  lookupValue       String
+  documentKind      String
+  scanTokenHash     String   @unique
+  pollTokenHash     String   @unique
+  verificationProof String?
+  status            String   @default("PENDING")
+  expiresAt         DateTime
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([memberDirectoryId, status])
+  @@index([expiresAt])
+}
+
 enum UserRole {
   ADMIN
   PROMOTER

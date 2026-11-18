@@ -113,13 +113,15 @@ function readLines(result?: { items: OcrLine[] }) {
 export function IdentityDocumentCapture({
   kind,
   verificationToken,
+  handoffToken,
   verified,
   onVerified
 }: {
   kind: "EMPLOYEE_CARD" | "DOCUMENT_ID";
-  verificationToken: string;
+  verificationToken?: string;
+  handoffToken?: string;
   verified: boolean;
-  onVerified: (token: string) => void;
+  onVerified: (token?: string) => void;
 }) {
   const portrait = kind === "EMPLOYEE_CARD";
   const documentLabel = portrait ? "carnet de empleado" : "cédula";
@@ -233,7 +235,7 @@ export function IdentityDocumentCapture({
         const response = await fetch("/api/actualizacion-datos/validar-documento", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ verificationToken, lines: reading, kind })
+          body: JSON.stringify({ verificationToken, handoffToken, lines: reading, kind })
         });
         return { response, data: await response.json() };
       }

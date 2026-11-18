@@ -57,12 +57,12 @@ export function guardDataUpdateRequest(request: NextRequest) {
 
 // Railway overwrites X-Real-IP at its public edge. Do not trust client-supplied X-Forwarded-For.
 // Durable, namespaced counters keep the limit effective across restarts and replicas.
-export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" | "document" | "submit" | "resend") {
+export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" | "document" | "handoff" | "submit" | "resend") {
   const candidate = request.headers.get("x-real-ip") || "";
   const ip = isIP(candidate) ? candidate : "unknown";
   const key = `dataUpdate.rateLimit.${scope}.${signature(ip)}`;
-  const limit = scope === "lookup" ? 30 : scope === "document" ? 10 : scope === "resend" ? 3 : 10;
-  const window = scope === "lookup" || scope === "document" ? 15 * 60000 : 3600000;
+  const limit = scope === "lookup" ? 30 : scope === "document" ? 10 : scope === "handoff" ? 10 : scope === "resend" ? 3 : 10;
+  const window = scope === "lookup" || scope === "document" || scope === "handoff" ? 15 * 60000 : 3600000;
   const result = await prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
     const row = await tx.appSetting.findUnique({ where: { key } });
