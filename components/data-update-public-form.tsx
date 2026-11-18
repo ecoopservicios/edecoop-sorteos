@@ -243,13 +243,16 @@ export function DataUpdatePublicForm({ companies, texts, questions, initialCompl
   if (desktopAdvice === "CHECKING") return <section aria-label="Preparando formulario" className="mx-auto flex min-h-72 w-full max-w-xl items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm"><LoaderCircle size={28} className="animate-spin text-emerald-700" /></section>;
   if (desktopAdvice === "SHOW") return <section className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)]">
     <header className="flex items-center gap-4 border-b border-slate-200 px-6 py-5 sm:px-8"><img src="/edecoop-logo.png" alt="EDECOOP" className="h-auto w-20" /><h1 className="text-xl font-black text-slate-950 sm:text-2xl">Actualización de datos</h1></header>
-    <div className="px-6 py-8 sm:px-8">
-      <div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div>
-      <h2 className="text-2xl font-black text-slate-950">Validación segura con tu teléfono</h2>
-      <p className="mt-4 leading-relaxed text-slate-600">Para continuar aquí, en el paso de validación deberás escanear un código QR con tu teléfono y confirmar tu identidad mediante la cédula o el carnet de empleado.</p>
-      <div className="mt-6 flex items-start gap-3 border-l-4 border-emerald-600 bg-emerald-50 p-4 text-sm text-emerald-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>La computadora no utilizará su cámara. Después de validar el documento en el teléfono, este formulario continuará automáticamente.</p></div>
+    <div className="grid items-center gap-7 px-6 py-8 sm:grid-cols-[1fr_210px] sm:px-8">
+      <div>
+        <div className="mb-5 flex h-14 w-14 items-center justify-center bg-emerald-50 text-emerald-800"><Smartphone size={30} /></div>
+        <h2 className="text-2xl font-black text-slate-950">Escanea con el teléfono o continúa desde este dispositivo</h2>
+        <p className="mt-4 leading-relaxed text-slate-600">Necesitarás fotografiar tu cédula o carnet de empleado. Desde el teléfono podrás usar la cámara, encuadrar el documento y validarlo con mayor facilidad.</p>
+        <div className="mt-6 flex items-start gap-3 border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950"><Monitor size={20} className="mt-0.5 shrink-0" /><p>Si continúas en esta computadora, más adelante deberás escanear otro código QR para validar el documento desde tu teléfono.</p></div>
+      </div>
+      <div className="text-center"><div className="border border-slate-200 bg-white p-3"><img src="/api/actualizacion-datos/qr-publico" alt="Código QR para abrir la actualización de datos en el teléfono" className="h-auto w-full" /></div><p className="mt-3 text-sm font-bold text-slate-700">Escanea con la cámara de tu teléfono</p></div>
     </div>
-    <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 sm:w-auto"><ArrowRight size={19} />Comenzar actualización</button></div>
+    <div className="border-t border-slate-200 bg-slate-50 px-6 py-5 sm:px-8"><button type="button" onClick={continueOnDesktop} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-5 py-3 font-bold text-slate-800 hover:bg-slate-100 sm:w-auto"><Monitor size={19} />Continuar desde este dispositivo</button></div>
   </section>;
   const identityVisible = member && !["company", "lookup", "document"].includes(current.key);
   const reviewQuestions = stages.filter(s => s.question && s.key !== "whatsappPhone");
