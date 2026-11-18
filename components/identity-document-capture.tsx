@@ -137,7 +137,6 @@ export function IdentityDocumentCapture({
   const liveStats = useRef<{ previous: Uint8Array | null; samples: number; movement: number }>({ previous: null, samples: 0, movement: 0 });
 
   useEffect(() => {
-    if (usesSafariOcr()) return;
     const warmUp = () => { void getOcrEngine().catch(() => {}); };
     const idleWindow = window as unknown as {
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
