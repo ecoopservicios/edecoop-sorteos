@@ -47,8 +47,8 @@ export async function sendDataUpdateVerificationEmail({ email, name, token }: Ve
         sender: { email: fromEmail, name: fromName },
         to: [{ email, name }],
         subject: "Valida tu actualización de datos en EDECOOP",
-        textContent: `Hola ${name}. Recibimos tu actualización de datos. Para validarla, abre este enlace y presiona Validar mi registro: ${verificationUrl}`,
-        htmlContent: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#17202a"><h1 style="font-size:24px">Actualización de datos EDECOOP</h1><p>Hola <strong>${safeName}</strong>.</p><p>Recibimos tu actualización de datos. Confirma tu registro mediante el siguiente botón:</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#0f7b63;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:6px">Validar mi registro</a></p><p style="font-size:13px;color:#64748b">Este enlace es personal y solo puede utilizarse una vez.</p></div>`
+        textContent: `Hola ${name}. Recibimos tu actualización de datos. Abre este enlace para validar automáticamente tu registro: ${verificationUrl}`,
+        htmlContent: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#17202a"><h1 style="font-size:24px">Actualización de datos EDECOOP</h1><p>Hola <strong>${safeName}</strong>.</p><p>Recibimos tu actualización de datos. Abre el siguiente enlace para validar automáticamente tu registro:</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#0f7b63;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:6px">Validar mi registro</a></p><p style="font-size:13px;color:#64748b">Este enlace es personal y solo puede utilizarse una vez.</p></div>`
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(10000)

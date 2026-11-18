@@ -1,4 +1,14 @@
+import type { Metadata } from "next";
 import { DataUpdateEmailVerification } from "@/components/data-update-email-verification";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: "Validar actualización - EDECOOP",
+  referrer: "no-referrer",
+  robots: { index: false, follow: false }
+};
 
 export default async function ValidateDataUpdatePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
