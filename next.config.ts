@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     ].join("; ");
     return [{
       source: "/ocr/:path*",
-      headers: [{ key: "Cache-Control", value: "public, max-age=86400" }]
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
     }, {
       source: "/(.*)",
       headers: [

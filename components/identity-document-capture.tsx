@@ -136,6 +136,21 @@ export function IdentityDocumentCapture({
   const frameRef = useRef<HTMLDivElement>(null);
   const liveStats = useRef<{ previous: Uint8Array | null; samples: number; movement: number }>({ previous: null, samples: 0, movement: 0 });
 
+  useEffect(() => {
+    if (usesSafariOcr()) return;
+    const warmUp = () => { void getOcrEngine().catch(() => {}); };
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(warmUp, { timeout: 1200 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+    const timer = globalThis.setTimeout(warmUp, 250);
+    return () => globalThis.clearTimeout(timer);
+  }, []);
+
   useEffect(() => () => {
     stopStream(videoRef.current);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
