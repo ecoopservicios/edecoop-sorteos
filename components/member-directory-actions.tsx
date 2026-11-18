@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useRef, useState } from "react";
-import { Download, Trash2, Upload, X } from "lucide-react";
+import { Download, Pencil, Save, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
 
@@ -9,7 +9,9 @@ type Company = { id: string; name: string; isActive: boolean; dataUpdateEnabled:
 type UploadResult = {
   processed: number; created: number; updated: number; restored: number; removed: number; rejected: number; applied: boolean;
   errors: Array<{ row: number; message: string }>; duplicates: Array<{ row: number; message: string }>;
+  correctionRows?: CorrectionRow[];
 };
+type CorrectionRow = { rowNumber: number; firstName: string; lastName: string; employeeNumber: string; documentId: string; company: string; error: string };
 const fieldClass = "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm";
 
 export function MemberDirectoryActions({ companies, members }: { companies: Company[]; members: Array<{ enrollmentCompanyId: string }> }) {
@@ -22,6 +24,7 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
   const [mode, setMode] = useState<"" | "append" | "replace">("");
   const [confirmation, setConfirmation] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [correctionRows, setCorrectionRows] = useState<CorrectionRow[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteScope, setDeleteScope] = useState("all");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -34,7 +37,7 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
   function selectFile(event: ChangeEvent<HTMLInputElement>) {
     setFile(event.currentTarget.files?.[0] || null);
     event.currentTarget.value = "";
-    setMode(""); setConfirmation(""); setResult(null);
+    setMode(""); setConfirmation(""); setResult(null); setCorrectionRows([]);
   }
 
   async function uploadMembers() {
@@ -42,17 +45,55 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
     const form = new FormData();
     form.set("enrollmentCompanyId", companyId); form.set("file", file); form.set("mode", mode);
     form.set("confirmation", confirmation); form.set("expectedCount", String(companyCount));
-    setBusy(true); setResult(null);
+    setBusy(true); setResult(null); setCorrectionRows([]);
     try {
       const response = await fetch("/api/actualizacion-datos/base/carga", { method: "POST", body: form });
       const data = await response.json();
       if (typeof data.processed === "number") setResult(data);
-      if (!response.ok) throw new Error(data.error || "Revisa los errores y duplicados del archivo.");
-      notify(`Carga completada: ${data.created} nuevos, ${data.updated} actualizados, ${data.restored} reincorporados y ${data.removed} retirados del listado.`, data.rejected || data.duplicates?.length ? "info" : "success");
-      setFile(null); setMode(""); setConfirmation("");
-      router.refresh();
+      const corrections = Array.isArray(data.correctionRows) ? data.correctionRows : [];
+      setCorrectionRows(corrections);
+      if (!response.ok && !corrections.some((row: CorrectionRow) => row.error)) throw new Error(data.error || "Revisa los errores y duplicados del archivo.");
+      if (corrections.some((row: CorrectionRow) => row.error)) {
+        notify(data.applied ? "Las filas válidas fueron cargadas. Corrige las rechazadas para completar la carga." : "Corrige las filas rechazadas y vuelve a aplicar la carga.", "info");
+      } else {
+        notify(`Carga completada: ${data.created} nuevos, ${data.updated} actualizados, ${data.restored} reincorporados y ${data.removed} retirados del listado.`, data.duplicates?.length ? "info" : "success");
+        setFile(null); setMode(""); setConfirmation("");
+      }
+      if (data.applied) router.refresh();
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo cargar el archivo. Intenta nuevamente.", "error");
+    } finally { setBusy(false); }
+  }
+
+  function updateCorrection(index: number, field: keyof Omit<CorrectionRow, "rowNumber" | "error">, value: string) {
+    setCorrectionRows(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+  }
+
+  async function applyCorrections() {
+    if (!file || !companyId || !mode || busy || !correctionRows.length) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/actualizacion-datos/base/carga", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enrollmentCompanyId: companyId, mode, confirmation, expectedCount: companyCount, fileName: file.name,
+          rows: correctionRows.map(({ error: _error, ...row }) => row)
+        })
+      });
+      const data = await response.json();
+      if (typeof data.processed === "number") setResult(data);
+      const corrections = Array.isArray(data.correctionRows) ? data.correctionRows : [];
+      setCorrectionRows(corrections);
+      if (!response.ok && !corrections.some((row: CorrectionRow) => row.error)) throw new Error(data.error || "Las correcciones todavía contienen errores.");
+      if (corrections.some((row: CorrectionRow) => row.error)) {
+        notify(data.applied ? "Se aplicaron las correcciones válidas. Aún quedan filas por revisar." : "Aún hay datos que debes corregir antes de aplicar la carga.", "info");
+      } else {
+        notify(`Correcciones aplicadas: ${data.created} nuevos, ${data.updated} actualizados y ${data.restored} reincorporados.`, "success");
+        setFile(null); setMode(""); setConfirmation("");
+      }
+      if (data.applied) router.refresh();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudieron aplicar las correcciones.", "error");
     } finally { setBusy(false); }
   }
 
@@ -77,19 +118,19 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
   return <>
     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
       <a href="/api/actualizacion-datos/base/plantilla" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-100"><Download size={18} />Descargar template</a>
-      <button type="button" disabled={busy} onClick={() => { setUploadOpen(true); setCompanyId(configured[0]?.id || ""); setFile(null); setMode(""); setConfirmation(""); setResult(null); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"><Upload size={18} />Cargar listado de socios</button>
+      <button type="button" disabled={busy} onClick={() => { setUploadOpen(true); setCompanyId(configured[0]?.id || ""); setFile(null); setMode(""); setConfirmation(""); setResult(null); setCorrectionRows([]); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"><Upload size={18} />Cargar listado de socios</button>
       <button type="button" disabled={busy || !members.length} onClick={() => { setDeleteScope("all"); setDeleteConfirmation(""); setDeleteOpen(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-300 px-4 py-2 font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"><Trash2 size={18} />Eliminar listado completo</button>
     </div>
 
     {uploadOpen && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="member-upload-title" className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-lg bg-white p-5 shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-labelledby="member-upload-title" className={`flex max-h-[90dvh] w-full ${correctionRows.length ? "max-w-6xl" : "max-w-xl"} flex-col overflow-hidden rounded-lg bg-white p-5 shadow-2xl`}>
         <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
           <h3 id="member-upload-title" className="text-lg font-black text-slate-950">Cargar base de socios</h3>
           <button type="button" disabled={busy} onClick={() => setUploadOpen(false)} aria-label="Cerrar carga" title="Cerrar" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"><X size={18} /></button>
         </div>
         <div className="min-h-0 overflow-y-auto">
         <label className="block text-sm font-bold text-slate-700">Empresa
-          <select autoFocus aria-label="Empresa del listado" value={companyId} disabled={busy} onChange={event => { setCompanyId(event.currentTarget.value); setFile(null); setMode(""); setConfirmation(""); setResult(null); }} className={`mt-1 ${fieldClass}`}>
+          <select autoFocus aria-label="Empresa del listado" value={companyId} disabled={busy} onChange={event => { setCompanyId(event.currentTarget.value); setFile(null); setMode(""); setConfirmation(""); setResult(null); setCorrectionRows([]); }} className={`mt-1 ${fieldClass}`}>
             <option value="">Seleccione empresa</option>
             {configured.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
@@ -103,8 +144,8 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
           <p className="break-words text-sm font-semibold text-slate-700">{file.name}</p>
           <fieldset disabled={busy} className="mt-3 grid gap-3">
             <legend className="mb-3 font-bold text-slate-950">¿Qué deseas hacer con el listado de {company?.name}?</legend>
-            <label className="flex items-start gap-3 text-sm"><input type="radio" name="member-upload-mode" value="append" checked={mode === "append"} onChange={() => { setMode("append"); setConfirmation(""); setResult(null); }} className="mt-0.5 h-4 w-4 accent-emerald-700" /><span>Agregar al listado existente <span className="font-semibold">({companyCount} socios)</span></span></label>
-            <label className="flex items-start gap-3 text-sm"><input type="radio" name="member-upload-mode" value="replace" checked={mode === "replace"} onChange={() => { setMode("replace"); setConfirmation(""); setResult(null); }} className="mt-0.5 h-4 w-4 accent-emerald-700" /><span>Reemplazar el listado anterior de esta empresa</span></label>
+            <label className="flex items-start gap-3 text-sm"><input type="radio" name="member-upload-mode" value="append" checked={mode === "append"} onChange={() => { setMode("append"); setConfirmation(""); setResult(null); setCorrectionRows([]); }} className="mt-0.5 h-4 w-4 accent-emerald-700" /><span>Agregar al listado existente <span className="font-semibold">({companyCount} socios)</span></span></label>
+            <label className="flex items-start gap-3 text-sm"><input type="radio" name="member-upload-mode" value="replace" checked={mode === "replace"} onChange={() => { setMode("replace"); setConfirmation(""); setResult(null); setCorrectionRows([]); }} className="mt-0.5 h-4 w-4 accent-emerald-700" /><span>Reemplazar el listado anterior de esta empresa</span></label>
           </fieldset>
           {mode === "replace" && <div role="alert" className="mt-4 border-l-4 border-red-500 bg-red-50 p-3 text-sm text-red-950">
             <p>Se reemplazará el listado de {company?.name} ({companyCount} socios). Las demás empresas y las solicitudes recibidas se conservarán. Si hay errores en el archivo, no se reemplazará nada.</p>
@@ -116,13 +157,30 @@ export function MemberDirectoryActions({ companies, members }: { companies: Comp
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700 sm:grid-cols-3">
             {[["Procesados", result.processed], ["Nuevos", result.created], ["Actualizados", result.updated], ["Reincorporados", result.restored], ["Retirados", result.removed], ["Rechazados", result.rejected]].map(([label, value]) => <div key={label}><dt className="inline">{label}: </dt><dd className="inline font-bold">{value}</dd></div>)}
           </dl>
-          {!!result.errors?.length && <div className="mt-3"><h4 className="font-bold text-red-800">Errores y duplicados rechazados</h4><ul className="mt-2 max-h-40 space-y-2 overflow-y-auto break-words text-red-700">{result.errors.map(error => <li key={`${error.row}-${error.message}`}>{error.message}</li>)}</ul></div>}
+          {!!result.errors?.length && !correctionRows.some(row => row.error) && <div className="mt-3"><h4 className="font-bold text-red-800">Errores y duplicados rechazados</h4><ul className="mt-2 max-h-40 space-y-2 overflow-y-auto break-words text-red-700">{result.errors.map(error => <li key={`${error.row}-${error.message}`}>{error.message}</li>)}</ul></div>}
           {!!result.duplicates?.length && <details className="mt-3 text-amber-900"><summary className="cursor-pointer font-bold">Coincidencias con registros existentes: {result.duplicates.length}</summary><ul className="mt-2 max-h-40 space-y-2 overflow-y-auto break-words">{result.duplicates.map(item => <li key={item.row}>{item.message}</li>)}</ul></details>}
         </div>}
+        {correctionRows.some(row => row.error) && <section className="mt-5 border-t border-slate-200 pt-4" aria-labelledby="member-corrections-title">
+          <div className="flex items-center gap-2"><Pencil size={18} className="text-amber-700" /><h4 id="member-corrections-title" className="font-black text-slate-950">Corregir registros rechazados</h4></div>
+          <p className="mt-1 text-sm text-slate-600">Edita los datos marcados. Al aplicar, se validarán nuevamente antes de guardarlos.</p>
+          <div className="mt-4 grid gap-4">
+            {correctionRows.map((row, index) => row.error ? <article key={`${row.rowNumber}-${index}`} className="rounded-md border border-red-200 bg-red-50/40 p-4">
+              <p className="font-bold text-red-900">Fila {row.rowNumber}</p>
+              <p className="mt-1 break-words text-sm text-red-800">{row.error}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <label className="text-sm font-bold text-slate-700">Nombre<input value={row.firstName} disabled={busy} onChange={event => updateCorrection(index, "firstName", event.currentTarget.value)} className={`mt-1 ${fieldClass}`} /></label>
+                <label className="text-sm font-bold text-slate-700">Apellido<input value={row.lastName} disabled={busy} onChange={event => updateCorrection(index, "lastName", event.currentTarget.value)} className={`mt-1 ${fieldClass}`} /></label>
+                <label className="text-sm font-bold text-slate-700">NIE<input inputMode="numeric" maxLength={5} value={row.employeeNumber} disabled={busy} onChange={event => updateCorrection(index, "employeeNumber", event.currentTarget.value.replace(/\D/g, "").slice(0, 5))} className={`mt-1 ${fieldClass}`} /></label>
+                <label className="text-sm font-bold text-slate-700">Cédula<input inputMode="numeric" maxLength={13} value={row.documentId} disabled={busy} onChange={event => updateCorrection(index, "documentId", event.currentTarget.value.replace(/[^\d -]/g, "").slice(0, 13))} className={`mt-1 ${fieldClass}`} /></label>
+                <label className="text-sm font-bold text-slate-700">Empresa<input value={row.company} disabled={busy} onChange={event => updateCorrection(index, "company", event.currentTarget.value)} className={`mt-1 ${fieldClass}`} /></label>
+              </div>
+            </article> : null)}
+          </div>
+        </section>}
         </div>
         {file && <div className="mt-4 flex shrink-0 flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-          <button type="button" disabled={busy || !mode || (mode === "replace" && confirmation !== "REEMPLAZAR")} onClick={uploadMembers} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"><Upload size={18} />{busy ? "Validando y cargando..." : "Confirmar carga"}</button>
-          <button type="button" disabled={busy} onClick={() => { setFile(null); setMode(""); setConfirmation(""); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700"><X size={18} />Cancelar archivo</button>
+          {correctionRows.some(row => row.error) ? <button type="button" disabled={busy} onClick={applyCorrections} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"><Save size={18} />{busy ? "Validando correcciones..." : "Aplicar correcciones"}</button> : <button type="button" disabled={busy || !mode || (mode === "replace" && confirmation !== "REEMPLAZAR")} onClick={uploadMembers} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"><Upload size={18} />{busy ? "Validando y cargando..." : "Confirmar carga"}</button>}
+          <button type="button" disabled={busy} onClick={() => { setFile(null); setMode(""); setConfirmation(""); setResult(null); setCorrectionRows([]); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 font-bold text-slate-700"><X size={18} />Cancelar archivo</button>
         </div>}
       </section>
     </div>}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as XLSX from "xlsx";
 import { readFileSync } from "node:fs";
-import { directoryName, directoryDocument, directoryEmployee, parseMemberUpload } from "../lib/member-directory-upload";
+import { directoryName, directoryDocument, directoryEmployee, memberCorrectionRows, parseEditedMemberRows, parseMemberUpload } from "../lib/member-directory-upload";
 const company = { name: "EDESUR", dataUpdateLookupField: "EMPLOYEE_NUMBER" as const };
 const headers = ["NOMBRE", "APELLIDO", "NIE", "CEDULA", "EMPRESA"];
 function file(rows: unknown[][], customHeaders = headers, bookType: XLSX.BookType = "xlsx") {
@@ -65,6 +65,27 @@ test("rejects duplicate documents and NIE within the same file", () => {
 });
 test("rejects invalid names rather than deleting symbols", () => {
   assert.throws(() => directoryName("JOSE123", "Nombre")); assert.throws(() => directoryName("A", "Nombre"));
+});
+test("returns rejected file values so an administrator can correct them", () => {
+  const invalid = [...valid]; invalid[2] = "123456";
+  const result = parseMemberUpload(file([invalid]), company);
+  assert.equal(result.rows.length, 0); assert.equal(result.sourceRows.length, 1);
+  assert.deepEqual(result.sourceRows[0], { rowNumber: 2, firstName: "José María", lastName: "Peña Núñez", employeeNumber: "123456", documentId: "00112345678", company: "edesur" });
+});
+test("validates edited rejected rows with the same normalization and duplicate rules", () => {
+  const edited = { rowNumber: 8, firstName: "  José María ", lastName: "Peña Núñez", employeeNumber: "12345", documentId: "001-1234567-8", company: "EDESUR" };
+  const corrected = parseEditedMemberRows([edited], company);
+  assert.equal(corrected.errors.length, 0);
+  assert.deepEqual(corrected.rows[0], { rowNumber: 8, firstName: "JOSE MARIA", lastName: "PEÑA NUÑEZ", employeeNumber: "12345", documentId: "00112345678" });
+  const duplicated = parseEditedMemberRows([edited, { ...edited, rowNumber: 9 }], company);
+  assert.equal(duplicated.rows.length, 1); assert.match(duplicated.errors[0].message, /repetida en la fila 8/);
+});
+test("retries only rejected rows in append mode and the complete list in replace mode", () => {
+  const parsed = parseMemberUpload(file([valid, [...valid.slice(0, 2), "12346", "00212345678", "EDESUR"]]), company);
+  const errors = [{ row: 3, message: "Fila 3 rechazada" }];
+  assert.deepEqual(memberCorrectionRows(parsed.sourceRows, errors, "append").map(row => row.rowNumber), [3]);
+  assert.deepEqual(memberCorrectionRows(parsed.sourceRows, errors, "replace").map(row => row.rowNumber), [2, 3]);
+  assert.equal(memberCorrectionRows(parsed.sourceRows, errors, "replace")[0].error, "");
 });
 test("supports UTF-8, UTF-16 and Windows-1252 CSV without losing enye or leading zeros", () => {
   const csv = headers.join(",") + "\n" + valid.join(",");

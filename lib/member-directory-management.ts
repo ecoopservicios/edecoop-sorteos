@@ -1,9 +1,9 @@
 import type { Prisma } from "@prisma/client";
-import type { MemberUploadError, MemberUploadRow, parseMemberUpload } from "./member-directory-upload";
+import type { MemberUploadError, MemberUploadRow } from "./member-directory-upload";
 
 export type MemberImportMode = "append" | "replace";
 type ExistingMember = { id: string; firstName: string; lastName: string; documentId: string | null; employeeNumber: string | null; isActive: boolean };
-type ParsedUpload = ReturnType<typeof parseMemberUpload>;
+type ParsedUpload = { rows: MemberUploadRow[]; errors: MemberUploadError[]; processed: number };
 
 export class MemberDirectoryError extends Error {
   constructor(message: string, public status = 422) { super(message); }
