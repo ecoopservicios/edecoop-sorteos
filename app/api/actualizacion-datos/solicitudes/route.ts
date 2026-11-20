@@ -5,17 +5,16 @@ import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-set
 import { compareContactValue, normalizeLookupValue, normalizePersonalEmail, tenDigitContactPhone } from "@/lib/data-update";
 import { prisma } from "@/lib/db";
 import { validatePersonName } from "@/lib/participants";
-import { completedDataUpdate, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
+import { dataUpdateMemberSendRateLimit, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof, setDataUpdateReceipt } from "@/lib/data-update-security";
 import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
 import { parseEmergencyContactRelation } from "@/lib/emergency-contact-relation";
 
-class AlreadySubmitted extends Error {}
+class AlreadyVerified extends Error {}
 
 export async function POST(request: NextRequest) {
   try {
     const guarded = guardDataUpdateRequest(request);
     if (guarded) return guarded;
-    if (completedDataUpdate(request)) return NextResponse.json({ error: "Ya completaste una actualización en esta sesión.", code: "COMPLETED" }, { status: 409 });
     const limited = await dataUpdateRateLimit(request, "submit");
     if (limited) return limited;
     const payload = await request.json();
@@ -77,36 +76,60 @@ export async function POST(request: NextRequest) {
       cleanResponses.emergencyContactLastName = emergencyContactLastName!;
     }
 
+    if (process.env.BREVO_API_KEY?.trim() && process.env.EMAIL_FROM_ADDRESS?.trim()) {
+      const memberSendLimited = await dataUpdateMemberSendRateLimit(member.id);
+      if (memberSendLimited) return memberSendLimited;
+    }
+
     const emailVerification = createDataUpdateEmailToken();
-    const submission = await prisma.$transaction(async tx => {
+    const { submission, updated } = await prisma.$transaction(async tx => {
       // Serialize submissions for the same person, including requests from different tabs or replicas.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`data-update-member:${member.documentId || member.id}`}))`;
-      const existing = await tx.memberDataUpdateSubmission.findFirst({ where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] }, select: { id: true } });
-      if (existing) throw new AlreadySubmitted("Este socio ya tiene una actualización registrada.");
-      const created = await tx.memberDataUpdateSubmission.create({
-        data: {
+      const existing = await tx.memberDataUpdateSubmission.findFirst({
+        where: { OR: [{ memberDirectoryId: member.id }, ...(member.documentId ? [{ memberDirectory: { documentId: member.documentId } }] : [])] },
+        orderBy: { createdAt: "desc" }
+      });
+      if (existing?.emailVerifiedAt) throw new AlreadyVerified("Este socio ya validó su actualización de datos.");
+      const currentData = {
+        lookupField: company.dataUpdateLookupField!,
+        lookupValue,
+        personalPhone,
+        whatsappPhone,
+        personalEmail,
+        emergencyContactName,
+        emergencyContactPhone,
+        emergencyContactRelation,
+        customResponses: cleanResponses,
+        phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
+        whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
+        emailValidationStatus: compareContactValue(personalEmail, member.personalEmail),
+        emailVerificationTokenHash: emailVerification.hash,
+        emailVerificationSentAt: null,
+        emailVerifiedAt: null,
+        emailDeliveryStatus: "PENDING" as const,
+        emailDeliveryError: null
+      };
+      const saved = existing
+        ? await tx.memberDataUpdateSubmission.update({ where: { id: existing.id }, data: currentData })
+        : await tx.memberDataUpdateSubmission.create({
+          data: {
           memberDirectoryId: member.id,
           enrollmentCompanyId: member.enrollmentCompanyId,
-          lookupField: company.dataUpdateLookupField!,
-          lookupValue,
           previousPersonalPhone: member.personalPhone,
           previousWhatsappPhone: member.whatsappPhone,
           previousPersonalEmail: member.personalEmail,
-          personalPhone,
-          whatsappPhone,
-          personalEmail,
-          emergencyContactName,
-          emergencyContactPhone,
-          emergencyContactRelation,
-          customResponses: cleanResponses,
-          phoneValidationStatus: compareContactValue(personalPhone, member.personalPhone),
-          whatsappValidationStatus: compareContactValue(whatsappPhone, member.whatsappPhone),
-          emailValidationStatus: compareContactValue(personalEmail, member.personalEmail),
-          emailVerificationTokenHash: emailVerification.hash
+          ...currentData
+          }
         }
-      });
-      await tx.auditLog.create({ data: { action: "MEMBER_DATA_UPDATE_SUBMITTED", entityType: "MemberDataUpdateSubmission", entityId: created.id, reason: "Actualizacion publica con identidad validada y un envio por socio.", metadata: { memberDirectoryId: member.id, whatsappMode } } });
-      return created;
+      );
+      await tx.auditLog.create({ data: {
+        action: existing ? "MEMBER_DATA_UPDATE_EDITED" : "MEMBER_DATA_UPDATE_SUBMITTED",
+        entityType: "MemberDataUpdateSubmission",
+        entityId: saved.id,
+        reason: existing ? "El socio editó su solicitud pendiente después de validar nuevamente su identidad." : "Actualizacion publica con identidad validada y un envio por socio.",
+        metadata: { memberDirectoryId: member.id, whatsappMode }
+      } });
+      return { submission: saved, updated: Boolean(existing) };
     });
 
     const emailResult = await sendDataUpdateVerificationEmail({
@@ -122,11 +145,11 @@ export async function POST(request: NextRequest) {
             where: { id: submission.id },
             data: emailResult.sent
               ? { emailDeliveryStatus: "SENT", emailVerificationSentAt: new Date(), emailDeliveryError: null }
-              : { emailDeliveryStatus: "FAILED", emailDeliveryError: emailError }
+              : { emailDeliveryStatus: "FAILED", emailVerificationSentAt: null, emailDeliveryError: emailError }
           });
           await tx.auditLog.create({
             data: {
-              action: emailResult.sent ? "MEMBER_DATA_UPDATE_EMAIL_SENT" : "MEMBER_DATA_UPDATE_EMAIL_FAILED",
+              action: emailResult.sent ? (updated ? "MEMBER_DATA_UPDATE_EDIT_EMAIL_SENT" : "MEMBER_DATA_UPDATE_EMAIL_SENT") : (updated ? "MEMBER_DATA_UPDATE_EDIT_EMAIL_FAILED" : "MEMBER_DATA_UPDATE_EMAIL_FAILED"),
               entityType: "MemberDataUpdateSubmission",
               entityId: submission.id,
               reason: emailResult.sent ? "Correo de validación enviado al socio." : "La actualización se guardó, pero el correo no pudo enviarse.",
@@ -147,13 +170,15 @@ export async function POST(request: NextRequest) {
       message: !emailResult.configured
         ? texts!.successMessage
         : emailResult.sent
-        ? "Tu actualización fue recibida. Enviamos un enlace para validar tu registro. Revisa tu bandeja de entrada y, si no lo encuentras, las carpetas Spam, Correo no deseado y Promociones."
-        : "Tu actualización fue recibida correctamente, pero el correo de validación no pudo enviarse en este momento. Comunícate con Servicio al cliente EDECOOP para recibir asistencia."
+        ? updated
+          ? "Tus cambios fueron guardados. Enviamos un nuevo enlace de validación y los enlaces anteriores dejaron de funcionar."
+          : "Tu actualización fue recibida. Enviamos un enlace para validar tu registro. Revisa tu bandeja de entrada y, si no lo encuentras, las carpetas Spam, Correo no deseado y Promociones."
+        : "Tu actualización fue guardada correctamente, pero el correo de validación no pudo enviarse en este momento. Comunícate con Servicio al cliente EDECOOP para recibir asistencia."
     });
     setDataUpdateReceipt(response, member.id);
     return response;
   } catch (error) {
-    if (error instanceof AlreadySubmitted) return NextResponse.json({ error: error.message, code: "ALREADY_SUBMITTED" }, { status: 409 });
+    if (error instanceof AlreadyVerified) return NextResponse.json({ error: error.message, code: "COMPLETED" }, { status: 409 });
     return jsonError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.", 422);
   }
 }

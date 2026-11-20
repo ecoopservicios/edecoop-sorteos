@@ -41,6 +41,12 @@ type UpdateRow = {
   personalPhone: string;
   whatsappPhone: string;
   personalEmail: string;
+  emailDeliveryLabel: string;
+  emailValidationLabel: string;
+  emailResendLabel: string;
+  emailSentAt: string;
+  emailVerifiedAt: string;
+  emailLastResentAt: string;
   emergencyContactName: string;
   emergencyContactLastName: string;
   emergencyContactPhone: string;
@@ -73,6 +79,17 @@ type DataUpdateQuestion = {
 const inputClass = "h-11 rounded-md border border-slate-300 px-3 py-2";
 const fieldClass = "h-11 w-full rounded-md border border-slate-300 px-3 py-2";
 const textareaClass = "min-h-24 w-full rounded-md border border-slate-300 px-3 py-2";
+
+function EmailTrackingCell({ label, date }: { label: string; date?: string }) {
+  const color = label === "Validado" || label === "Enviado" || label.startsWith("Sí")
+    ? "bg-emerald-50 text-emerald-800"
+    : label === "Tiempo agotado" || label === "Pendiente"
+      ? "bg-amber-50 text-amber-800"
+      : label === "Falló el envío" || label === "No enviado"
+        ? "bg-red-50 text-red-800"
+        : "bg-slate-100 text-slate-700";
+  return <div className="min-w-32"><span className={`inline-flex rounded px-2 py-1 text-xs font-bold ${color}`}>{label}</span>{date ? <p className="mt-1 whitespace-nowrap text-xs text-slate-500">{date}</p> : null}</div>;
+}
 
 export function DataUpdateAdmin({
   enrollmentCompanies,
@@ -534,6 +551,12 @@ export function DataUpdateAdmin({
               Telefono: row.personalPhone,
               WhatsApp: row.whatsappPhone || "No tiene WhatsApp",
               Correo: row.personalEmail,
+              "Envío del correo": row.emailDeliveryLabel,
+              "Fecha de envío": row.emailSentAt,
+              "Validación del correo": row.emailValidationLabel,
+              "Fecha de validación": row.emailVerifiedAt,
+              "Correo reenviado": row.emailResendLabel,
+              "Último reenvío": row.emailLastResentAt,
               "Contacto de emergencia - Nombre": row.emergencyContactName,
               "Contacto de emergencia - Apellido": row.emergencyContactLastName,
               "Contacto de emergencia - Teléfono": row.emergencyContactPhone,
@@ -549,7 +572,7 @@ export function DataUpdateAdmin({
           <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value.toUpperCase())} autoComplete="off" className="h-11 rounded-md border border-red-300 bg-white px-3" aria-label="Confirmación para borrar solicitudes" /><button type="button" onClick={resetReceivedUpdates} disabled={busy || resetConfirmation !== "BORRAR"} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-700 px-4 font-bold text-white hover:bg-red-800 disabled:opacity-50">{busy ? "Borrando..." : "Confirmar borrado"}</button><button type="button" onClick={() => { setResetOpen(false); setResetConfirmation(""); }} disabled={busy} className="h-11 rounded-md border border-slate-300 bg-white px-4 font-bold text-slate-700">Cancelar</button></div>
         </div> : null}
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[1580px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-3 py-2">Fecha</th>
@@ -560,6 +583,9 @@ export function DataUpdateAdmin({
                 <th className="px-3 py-2">Telefono</th>
                 <th className="px-3 py-2">WhatsApp</th>
                 <th className="px-3 py-2">Correo</th>
+                <th className="px-3 py-2">Envío del correo</th>
+                <th className="px-3 py-2">Validación</th>
+                <th className="px-3 py-2">Reenvíos</th>
                 <th className="px-3 py-2">Nombre del contacto de emergencia</th>
                 <th className="px-3 py-2">Apellido del contacto de emergencia</th>
                 <th className="px-3 py-2">Teléfono de emergencia</th>
@@ -578,6 +604,9 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.personalPhone}</td>
                   <td className="px-3 py-2">{row.whatsappPhone || "No tiene WhatsApp"}</td>
                   <td className="px-3 py-2">{row.personalEmail}</td>
+                  <td className="px-3 py-2"><EmailTrackingCell label={row.emailDeliveryLabel} date={row.emailSentAt} /></td>
+                  <td className="px-3 py-2"><EmailTrackingCell label={row.emailValidationLabel} date={row.emailVerifiedAt} /></td>
+                  <td className="px-3 py-2"><EmailTrackingCell label={row.emailResendLabel} date={row.emailLastResentAt} /></td>
                   <td className="px-3 py-2">{row.emergencyContactName}</td>
                   <td className="px-3 py-2">{row.emergencyContactLastName}</td>
                   <td className="px-3 py-2">{row.emergencyContactPhone}</td>
@@ -585,7 +614,7 @@ export function DataUpdateAdmin({
                   <td className="px-3 py-2">{row.status}</td>
                 </tr>
               ))}
-              {!visibleUpdates.length && <tr><td colSpan={13} className="p-6 text-center text-slate-500">No hay solicitudes que coincidan con los filtros.</td></tr>}
+              {!visibleUpdates.length && <tr><td colSpan={16} className="p-6 text-center text-slate-500">No hay solicitudes que coincidan con los filtros.</td></tr>}
             </tbody>
           </table>
         </div>

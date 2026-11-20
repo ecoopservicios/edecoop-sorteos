@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { createDataUpdateEmailToken, sendDataUpdateVerificationEmail } from "@/lib/data-update-email";
-import { DATA_UPDATE_RECEIPT, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof } from "@/lib/data-update-security";
+import { DATA_UPDATE_RECEIPT, dataUpdateMemberSendRateLimit, dataUpdateRateLimit, guardDataUpdateRequest, readDataUpdateProof } from "@/lib/data-update-security";
 import { prisma } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
       orderBy: { createdAt: "desc" }
     });
     if (!submission) return jsonError("No encontramos una actualización asociada a esta sesión.", 404);
-    if (submission.emailVerifiedAt) return jsonError("Este registro ya fue validado.", 409);
+    if (submission.emailVerifiedAt) return NextResponse.json({ message: "Este registro ya fue validado.", verified: true });
+    const memberSendLimited = await dataUpdateMemberSendRateLimit(submission.memberDirectoryId);
+    if (memberSendLimited) return memberSendLimited;
 
     const verification = createDataUpdateEmailToken();
     const emailResult = await sendDataUpdateVerificationEmail({

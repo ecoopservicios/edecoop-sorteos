@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { hashDataUpdateEmailToken } from "@/lib/data-update-email";
 import { guardDataUpdateRequest } from "@/lib/data-update-security";
+import { isDataUpdateEmailExpired } from "@/lib/data-update-email-status";
 import { prisma } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
@@ -14,17 +15,23 @@ export async function POST(request: NextRequest) {
     const tokenHash = hashDataUpdateEmailToken(token);
     const result = await prisma.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`data-update-email:${tokenHash}`}))`;
-      const submission = await tx.memberDataUpdateSubmission.findFirst({ where: { emailVerificationTokenHash: tokenHash }, select: { id: true } });
+      const submission = await tx.memberDataUpdateSubmission.findFirst({ where: { emailVerificationTokenHash: tokenHash }, select: { id: true, emailVerificationSentAt: true } });
       if (!submission) return null;
+      if (!submission.emailVerificationSentAt || isDataUpdateEmailExpired(submission.emailVerificationSentAt)) {
+        await tx.memberDataUpdateSubmission.update({ where: { id: submission.id }, data: { emailVerificationTokenHash: null, emailDeliveryError: "El enlace de validación venció después de 24 horas." } });
+        await tx.auditLog.create({ data: { action: "MEMBER_DATA_UPDATE_EMAIL_EXPIRED", entityType: "MemberDataUpdateSubmission", entityId: submission.id, reason: "El enlace de validación venció después de 24 horas.", metadata: { channel: "EMAIL" } } });
+        return { expired: true, verifiedAt: null };
+      }
       const verifiedAt = new Date();
       await tx.memberDataUpdateSubmission.update({
         where: { id: submission.id },
         data: { emailVerificationTokenHash: null, emailVerifiedAt: verifiedAt, emailDeliveryStatus: "VERIFIED", emailDeliveryError: null }
       });
       await tx.auditLog.create({ data: { action: "MEMBER_DATA_UPDATE_EMAIL_VERIFIED", entityType: "MemberDataUpdateSubmission", entityId: submission.id, reason: "El socio validó su actualización mediante el enlace enviado por correo.", metadata: { channel: "EMAIL" } } });
-      return { verifiedAt };
+      return { expired: false, verifiedAt };
     });
     if (!result) return jsonError("El enlace de validación no es válido o ya fue utilizado.", 404);
+    if (result.expired) return jsonError("El enlace de validación venció. Regresa al formulario y solicita reenviar el correo.", 410);
     return NextResponse.json({ message: "Tu actualización de datos fue validada correctamente." }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "No se pudo validar la actualización.", 422);

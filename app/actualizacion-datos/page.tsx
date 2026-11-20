@@ -7,13 +7,14 @@ import { DataUpdateAdmin } from "@/components/data-update-admin";
 import { getDataUpdateQuestions, getDataUpdateTextSettings } from "@/lib/app-settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { dataUpdateEmailTracking } from "@/lib/data-update-email-status";
 
 export default async function DataUpdateAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== UserRole.ADMIN) redirect("/dashboard");
 
-  const [texts, questions, members, updates, enrollmentCompanies] = await Promise.all([
+  const [texts, questions, members, updates, enrollmentCompanies, emailResendLogs] = await Promise.all([
     getDataUpdateTextSettings(),
     getDataUpdateQuestions(),
     prisma.memberDirectory.findMany({
@@ -25,9 +26,19 @@ export default async function DataUpdateAdminPage() {
       include: { enrollmentCompany: true, memberDirectory: true },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }]
     }),
-    prisma.enrollmentCompany.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } })
+    prisma.enrollmentCompany.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
+    prisma.auditLog.findMany({
+      where: { entityType: "MemberDataUpdateSubmission", action: { in: ["MEMBER_DATA_UPDATE_EMAIL_RESENT", "MEMBER_DATA_UPDATE_EMAIL_RESEND_FAILED"] } },
+      select: { entityId: true, createdAt: true },
+      orderBy: { createdAt: "desc" }
+    })
   ]);
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:3002";
+  const resendTracking = new Map<string, { count: number; lastAt: Date }>();
+  for (const log of emailResendLogs) {
+    const current = resendTracking.get(log.entityId);
+    resendTracking.set(log.entityId, { count: (current?.count || 0) + 1, lastAt: current?.lastAt || log.createdAt });
+  }
 
   return (
     <AppShell user={user} module="data-update">
@@ -72,6 +83,14 @@ export default async function DataUpdateAdminPage() {
           const responses = row.customResponses && typeof row.customResponses === "object" && !Array.isArray(row.customResponses) ? row.customResponses : {};
           const firstName = typeof responses.emergencyContactFirstName === "string" ? responses.emergencyContactFirstName : "";
           const lastName = typeof responses.emergencyContactLastName === "string" ? responses.emergencyContactLastName : "";
+          const resend = resendTracking.get(row.id);
+          const emailTracking = dataUpdateEmailTracking({
+            deliveryStatus: row.emailDeliveryStatus,
+            sentAt: row.emailVerificationSentAt,
+            verifiedAt: row.emailVerifiedAt,
+            resendCount: resend?.count || 0
+          });
+          const emailDate = (date: Date | null | undefined) => date?.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" }) || "";
           return {
             id: row.id,
             memberId: row.memberDirectoryId,
@@ -84,6 +103,12 @@ export default async function DataUpdateAdminPage() {
             personalPhone: row.personalPhone,
             whatsappPhone: row.whatsappPhone,
             personalEmail: row.personalEmail,
+            emailDeliveryLabel: emailTracking.deliveryLabel,
+            emailValidationLabel: emailTracking.validationLabel,
+            emailResendLabel: emailTracking.resendLabel,
+            emailSentAt: emailDate(row.emailVerificationSentAt),
+            emailVerifiedAt: emailDate(row.emailVerifiedAt),
+            emailLastResentAt: emailDate(resend?.lastAt),
             emergencyContactName: firstName || row.emergencyContactName,
             emergencyContactLastName: lastName,
             emergencyContactPhone: row.emergencyContactPhone,

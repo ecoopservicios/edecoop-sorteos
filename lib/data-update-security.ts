@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const DATA_UPDATE_RECEIPT = "edecoop_data_update_receipt";
+export const DATA_UPDATE_MEMBER_SEND_LIMIT = 10;
+export const DATA_UPDATE_MEMBER_SEND_WINDOW_MS = 2 * 60 * 60 * 1000;
 type Proof = { purpose: "identity" | "receipt"; memberId: string; lookup: string; documentId: string | null; documentVerified?: boolean; expiresAt: number };
 function signature(value: string) {
   const secret = process.env.AUTH_SECRET;
@@ -61,8 +63,8 @@ export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" 
   const candidate = request.headers.get("x-real-ip") || "";
   const ip = isIP(candidate) ? candidate : "unknown";
   const key = `dataUpdate.rateLimit.${scope}.${signature(ip)}`;
-  const limit = scope === "lookup" ? 30 : scope === "document" ? 10 : scope === "handoff" ? 10 : scope === "resend" ? 3 : 10;
-  const window = scope === "lookup" || scope === "document" || scope === "handoff" ? 15 * 60000 : 3600000;
+  const limit = scope === "lookup" ? 30 : scope === "document" ? 10 : scope === "handoff" ? 10 : scope === "resend" ? 20 : 10;
+  const window = scope === "lookup" || scope === "document" || scope === "handoff" ? 15 * 60000 : scope === "resend" ? DATA_UPDATE_MEMBER_SEND_WINDOW_MS : 3600000;
   const result = await prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
     const row = await tx.appSetting.findUnique({ where: { key } });
@@ -97,4 +99,47 @@ export async function dataUpdateRateLimit(request: NextRequest, scope: "lookup" 
     return { limited: false, seconds: 0 };
   });
   return result.limited ? NextResponse.json({ error: "Demasiados intentos desde esta conexión. Espera unos minutos antes de continuar." }, { status: 429, headers: { "Retry-After": String(result.seconds), "Cache-Control": "no-store" } }) : null;
+}
+
+export async function dataUpdateMemberSendRateLimit(memberId: string) {
+  const key = `dataUpdate.memberSend.${signature(memberId)}`;
+  const result = await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+    const row = await tx.appSetting.findUnique({ where: { key } });
+    const now = Date.now();
+    let counter = { count: 0, resetAt: now + DATA_UPDATE_MEMBER_SEND_WINDOW_MS };
+    if (row) {
+      try {
+        const previous = JSON.parse(row.value);
+        if (Number.isFinite(previous.resetAt) && previous.resetAt > now && Number.isInteger(previous.count) && previous.count >= 0) counter = previous;
+      } catch { /* Replace an invalid counter with a fresh window. */ }
+    }
+    if (counter.count >= DATA_UPDATE_MEMBER_SEND_LIMIT) {
+      const markerKey = `${key}.blocked`;
+      const markerValue = String(counter.resetAt);
+      const marker = await tx.appSetting.findUnique({ where: { key: markerKey } });
+      if (marker?.value !== markerValue) {
+        await tx.appSetting.upsert({ where: { key: markerKey }, create: { key: markerKey, value: markerValue }, update: { value: markerValue } });
+        await tx.auditLog.create({
+          data: {
+            action: "DATA_UPDATE_MEMBER_SEND_LIMIT_BLOCKED",
+            entityType: "MemberDirectory",
+            entityId: memberId,
+            reason: "Se bloqueó temporalmente el envío de correos por exceder 10 solicitudes en 2 horas.",
+            metadata: { limit: DATA_UPDATE_MEMBER_SEND_LIMIT, resetAt: new Date(counter.resetAt).toISOString() }
+          }
+        });
+      }
+      return { limited: true, seconds: Math.max(1, Math.ceil((counter.resetAt - now) / 1000)) };
+    }
+    counter.count++;
+    await tx.appSetting.upsert({ where: { key }, create: { key, value: JSON.stringify(counter) }, update: { value: JSON.stringify(counter) } });
+    return { limited: false, seconds: 0 };
+  });
+  if (!result.limited) return null;
+  const minutes = Math.max(1, Math.ceil(result.seconds / 60));
+  return NextResponse.json({ error: `Alcanzaste el límite de 10 envíos. Inténtalo nuevamente en aproximadamente ${minutes} minutos.` }, {
+    status: 429,
+    headers: { "Retry-After": String(result.seconds), "Cache-Control": "no-store" }
+  });
 }
